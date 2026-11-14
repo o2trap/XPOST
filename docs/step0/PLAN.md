@@ -24,7 +24,7 @@ xpost can be built on the planned stack: Cloudflare for the whole backend, GitHu
 The main findings:
 - **Only YouTube and X can publish automatically to real users on day one.** YouTube dropped its "unaudited means private" rule on 2026-11-02, but all xpost users share 100 uploads a day. X needs no review, but every post costs xpost money.
 - **TikTok, Instagram and Facebook need approvals first.** TikTok needs scope review for inbox drafts and an audit for automatic public posts. Meta needs App Review plus Business Verification. **Snapchat's posting API is allowlist-only**, through a Snap contact.
-- **Assisted fill is forbidden on all six platforms**, either by their terms or because sign-in is blocked. I recommend not building M8.
+- **Assisted fill: owner approved all six platforms (2026-11-14)**, after this terms review. All six platforms' terms restrict it, so it is off by default and the user opts in per platform after a plain risk warning. Where sign-in is blocked in the in-app window (likely YouTube), that platform falls back to handoff, with no workaround.
 - **Handoff works everywhere** and is the fallback for every platform.
 - **Your request for "bring your own X keys" conflicts with X's Developer Agreement and Policy.** I propose an xpost-owned X app with a per-licence spending cap instead.
 - **A real domain is needed earlier than planned.** TikTok photo pulls need a verified domain. Google verification needs a verified-domain homepage. Meta review needs public privacy, terms and data-deletion URLs (a domain is strongly advisable). Email codes need a sending domain. Cloudflare Workers Paid ($5/month) is needed from M1.
@@ -474,16 +474,16 @@ export interface PlatformAdapter {
 
 ## E. Posting modes per platform
 
-**Assisted fill is excluded for all six platforms.** The terms forbid it everywhere, and sign-in is blocked on Google and Meta. See the last column.
+**Assisted fill: owner approved all six (2026-11-14).** The last column records the terms risk shown in each platform's opt-in warning. M8 starts with a hands-on sign-in test per platform; where sign-in is blocked, assisted fill is skipped for that platform and handoff is used. No user-agent spoofing or other workaround.
 
-| Platform | Available now (no approval) | After approval | Default mode | Why | Assisted fill |
+| Platform | Available now (no approval) | After approval | Default mode | Why | Assisted fill (owner approved all six) |
 |---|---|---|---|---|---|
-| **TikTok** | Handoff (TikTok Studio / Web Share). Sandbox for testing. | After `video.upload` review: **Draft in TikTok**, schedulable. After the audit: Automatic (Direct Post). | **Draft in TikTok** once approved; handoff until then | No audit needed. The user presses Post in TikTok. 5 pending drafts/24 h. | **No.** Global ToS bans scripts that interact with the service. Embedded sign-in UNVERIFIED. |
-| **Instagram** | Handoff (`instagram.com` / Web Share to the IG app). Automatic for app-role testers only. | Automatic for professional accounts (App Review + Business Verification). | **Automatic** for pro accounts; **handoff** for personal accounts | Personal accounts have no API. No web intent exists. | **No.** Meta ADC bans scripting actions; Meta has sued posting-automation tools. |
-| **YouTube** | **Automatic** (public allowed since 2026-11-02), up to 100 uploads/day for the project; 100-user cap until verified. Handoff (Studio). | OAuth verification removes the user cap. The quota audit raises 100/day. | **Automatic**; handoff when the daily quota is used up. Option: "upload private, publish in Studio", sent only when the user presses Send now, never on a schedule. | Only real automatic route that needs no approval besides X. | **No.** Google blocks embedded sign-in; ToS bans automated access. |
-| **X** | **Automatic** (paid per post). **Intent** (free, text and links). Handoff for media without the API. | n/a (no review) | **Automatic** within the licence's X cap. For link posts, recommend the **intent** default (decision I-2). | API cost is $0.015, or $0.20 with a link. | **No.** "Scripting the X website" is banned (permanent suspension). |
-| **Facebook** | Share Dialog (links, profile). Handoff. Automatic for app-role users only. | Automatic for **Pages**. (Meta's API draft is not offered as a scheduled mode.) | **Automatic** for Pages; **Share Dialog / handoff** for profiles | The API cannot post to profiles or groups. | **No.** Same Meta terms; embedded login blocked. |
-| **Snapchat** | Handoff (`my.snapchat.com` / `profile.snapchat.com` / Web Share). Share link for URLs. | After **allowlist**: Automatic for Public Profile admins. Spotlight shows "Submitted" until Snap reviews it. | **Handoff** | Allowlist access depends on a Snap contact, so it is uncertain. | **No.** ToS bans "automated or semi-automated means". |
+| **TikTok** | Handoff (TikTok Studio / Web Share). Sandbox for testing. | After `video.upload` review: **Draft in TikTok**, schedulable. After the audit: Automatic (Direct Post). | **Draft in TikTok** once approved; handoff until then | No audit needed. The user presses Post in TikTok. 5 pending drafts/24 h. | **Approved, opt-in (desktop).** Warning risk: Global ToS bans scripts that interact with the service. Embedded sign-in UNVERIFIED. |
+| **Instagram** | Handoff (`instagram.com` / Web Share to the IG app). Automatic for app-role testers only. | Automatic for professional accounts (App Review + Business Verification). | **Automatic** for pro accounts; **handoff** for personal accounts | Personal accounts have no API. No web intent exists. | **Approved, opt-in (desktop).** Warning risk: Meta ADC bans scripting actions; Meta has sued posting-automation tools. |
+| **YouTube** | **Automatic** (public allowed since 2026-11-02), up to 100 uploads/day for the project; 100-user cap until verified. Handoff (Studio). | OAuth verification removes the user cap. The quota audit raises 100/day. | **Automatic**; handoff when the daily quota is used up. Option: "upload private, publish in Studio", sent only when the user presses Send now, never on a schedule. | Only real automatic route that needs no approval besides X. | **Approved, opt-in (desktop).** Warning risk: Google blocks embedded sign-in; ToS bans automated access. |
+| **X** | **Automatic** (paid per post). **Intent** (free, text and links). Handoff for media without the API. | n/a (no review) | **Automatic** within the licence's X cap. For link posts, recommend the **intent** default (decision I-2). | API cost is $0.015, or $0.20 with a link. | **Approved, opt-in (desktop).** Warning risk: "Scripting the X website" is banned (permanent suspension). |
+| **Facebook** | Share Dialog (links, profile). Handoff. Automatic for app-role users only. | Automatic for **Pages**. (Meta's API draft is not offered as a scheduled mode.) | **Automatic** for Pages; **Share Dialog / handoff** for profiles | The API cannot post to profiles or groups. | **Approved, opt-in (desktop).** Warning risk: Same Meta terms; embedded login blocked. |
+| **Snapchat** | Handoff (`my.snapchat.com` / `profile.snapchat.com` / Web Share). Share link for URLs. | After **allowlist**: Automatic for Public Profile admins. Spotlight shows "Submitted" until Snap reviews it. | **Handoff** | Allowlist access depends on a Snap contact, so it is uncertain. | **Approved, opt-in (desktop).** Warning risk: ToS bans "automated or semi-automated means". |
 
 **Rules in every manual mode**
 - A person presses Post every time.
@@ -596,8 +596,11 @@ Lead times are **not in the research** unless stated. "Weeks" is my assumption. 
    - **Recommend:** each plan includes N automatic X posts a month.
    - Posts **with links** default to "You press Post" (free intent), with an opt-in to send automatically at $0.20.
    - Show the cost before sending.
-3. **Assisted fill (M8).** Forbidden or blocked on all six platforms.
-   - **Recommend: do not build M8.** Put the time into handoff polish.
+3. **Assisted fill (M8). DECIDED: all six platforms (owner, 2026-11-14).**
+   - Desktop only, off by default, opt-in per platform after a plain warning naming that platform's risk (X: permanent suspension; Meta: legal action history).
+   - The user's own session in an in-app window; the user logs in and presses Post. Sessions never leave the device; Electron cookie-encryption fuse on.
+   - Versioned, signed selector config via the updater/feed; remote kill switch per platform; plain-English fallback to handoff when a field can't be filled.
+   - Sign-in test first. If a platform blocks sign-in in the in-app window, skip it. No workarounds (no UA spoofing, stealth, CAPTCHA bypass).
 4. **Stronger sign-in.**
    - **Recommend:** licence key + purchase email + **emailed 6-digit code** (Email Service, about $0.35 per 1,000 after 3,000 free each month). It needs the domain.
    - Add passkeys later as an optional upgrade (free, no email).
@@ -668,7 +671,7 @@ Routing rule: **Opus** for hard work (research and planning; tokens, OAuth, sess
 | **M5** API adapters, easiest access first | One at a time; each works in private/test mode before any approval (except Snapchat, which cannot post at all until allowlisted). | Suggested order by access: **X** (no review, pay per use) → **YouTube** (public allowed since 2026-11-02; 100 uploads/day shared) → **TikTok draft** (`video.upload` review; sandbox first) → **Instagram + Facebook** (app-role testers until App Review) → **Snapchat** (only if allowlisted). YouTube, TikTok and Meta need the domain. | All adapters, OAuth, media transfer → **Opus**. Platform-specific UX screens (e.g. TikTok's required post screen) → **Sonnet**. |
 | **M6** Approval pack | Privacy policy, terms, data-deletion page, demo script per platform, prepared as each adapter works. You submit. | Meta data-deletion callback endpoint. Start Meta Business Verification at M1 (long lead). | Drafts → **Sonnet**. Claims checked against the code → **Opus**. |
 | **M7** Desktop app | XLISTit shell, activation + device binding, deactivate in settings, offline grace, offline drafts, notifications, drag-and-drop, file reveal, update assistant, signed Mac/Win installers, Releases feed. | Turn on Electron cookie-encryption fuse. New signing key (not XLISTit's). Signing in CI (XLISTit never did). Needs Apple + Windows certs (H-11, H-12). | Licence client, updater, signing pipeline → **Opus**. Shell wiring, desktop UI → **Sonnet**. |
-| **M8** Assisted fill | Only for platforms you approve. | **Recommend: approve none.** Terms forbid it on all six; Google and Meta block embedded sign-in (I-3). | **Opus**, only if you approve a platform. |
+| **M8** Assisted fill | Only for platforms you approve. | **Approved: all six** (I-3). Step 1: in-app sign-in test per platform; blocked platforms (likely YouTube) stay on handoff. Step 2: per-platform fillers, warnings, kill switches, selector feed. | All assisted-fill work → **Opus**. Review → **Opus**. |
 | **M9** Hardening | Cost caps, monitoring, alerts on failed jobs, README with setup and known limits. | Also: export history, delete my data (if not done earlier), security review, sweep load test. | Security, cost caps, alerts → **Opus**. README → **Sonnet**. |
 
 **Approvals run in parallel with the build:**
