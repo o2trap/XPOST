@@ -27,7 +27,7 @@ The main findings:
 - **Assisted fill is forbidden on all six platforms**, either by their terms or because sign-in is blocked. I recommend not building M8.
 - **Handoff works everywhere** and is the fallback for every platform.
 - **Your request for "bring your own X keys" conflicts with X's Developer Agreement and Policy.** I propose an xpost-owned X app with a per-licence spending cap instead.
-- **A real domain is needed earlier than planned.** TikTok photo pulls need a verified domain. Google and Meta verification need a site on a domain you own. Email codes need a sending domain. Cloudflare Workers Paid ($5/month) is needed from M1.
+- **A real domain is needed earlier than planned.** TikTok photo pulls need a verified domain. Google verification needs a verified-domain homepage. Meta review needs public privacy, terms and data-deletion URLs (a domain is strongly advisable). Email codes need a sending domain. Cloudflare Workers Paid ($5/month) is needed from M1.
 - **Scheduling:** I recommend D1 as the source of truth, a cron sweep every minute, and one Workflow per target, with no Queue.
 
 ### What changed vs your expected constraints
@@ -51,7 +51,7 @@ The main findings:
 | 15 | Snapchat: public profiles only | **CONFIRMED** | Endpoints sit under `/public_profiles/{id}`. Only profile Admins can post. |
 | 16 | Snapchat: approval may be needed | **CHANGED: stricter [LIVE]** | "The Public Profile API is currently allowlist only." You need a Snap Business Account, an OAuth app made in **Ads Manager** (not the Developer Portal), and a Snap contact. https://developers.snap.com/marketing-api/Public-Profile-API/GetStarted |
 | 17 | Snapchat: a web uploader exists | **CONFIRMED** | profile.snapchat.com, my.snapchat.com and snapchat.com/spotlight. The help pages disagree on which one is canonical. |
-| 18 | Terms restrict automation outside the APIs | **CONFIRMED for all six** | Meta: "Platform APIs are the only allowable means… The use of scripts… to automate actions… outside of the Platform APIs is not allowed" [DIRECT]. TikTok global ToS: no "automated scripts to… interact with the Services". YouTube ToS: no "automated means". Snap ToS: no "automated or semi-automated means". |
+| 18 | Terms restrict automation outside the APIs | **CONFIRMED for all six** | Meta: "Platform APIs are the only allowable means… The use of scripts… to automate actions… outside of the Platform APIs is not allowed" [DIRECT]. TikTok global ToS: no "automated scripts to… interact with the Services". YouTube ToS: no "automated means". Snap ToS [search]: no "automated or semi-automated means". |
 | 19 | X bans scripting its website | **CONFIRMED [LIVE]** | Automation Rules ban "scripting the X website". Developer Guidelines: "No scraping, browser automation… permanent suspension." https://docs.x.com/developer-guidelines |
 | 20 | Google blocks embedded sign-in | **CONFIRMED [LIVE policy text]** | "A developer must not direct a Google OAuth 2.0 authorization request to an embedded user-agent." https://developers.google.com/identity/protocols/oauth2/policies |
 | 21 | TikTok and Instagram need media-URL domain verification | **Half CHANGED** | TikTok PULL_FROM_URL: **CONFIRMED** (verify the domain or URL prefix; https; no redirects). Instagram: **no verification documented** (UNVERIFIED). It only needs a public HTTPS URL. |
@@ -64,7 +64,7 @@ The main findings:
 - **Facebook:** Reels are capped at **30 per Page per 24 h** [DIRECT]. The Share Dialog has a new `hashtag` parameter, but no text parameter.
 - **X:** **bring-your-own-keys is forbidden** by the Developer Agreement and Policy [LIVE]. Media-upload pricing is not published (UNVERIFIED). A $20 credit incentive exists.
 - **Snapchat:** API video runs **5–300 s** and images are allowed on Stories [LIVE]. Spotlight posts go through **per-post review** (SUBMITTED, then LIVE or REJECTED). Media must be **AES-256-CBC encrypted** before upload. Creative Kit for Web needs no review, but it shares **URLs only**.
-- **Cloudflare:** new projects should use **Workers with Static Assets, not Pages**. Workflow and step billing started 2026-08-10. The Rate Limiting binding is approximate.
+- **Cloudflare:** new projects should use **Workers with Static Assets, not Pages**. Workflow step and storage billing started 2026-08-10. The Rate Limiting binding is approximate.
 - **Bridge report correction:** `cloudflare_bridges.md` says bridges are needed because YouTube locks unaudited uploads to private. That is **out of date** since 2026-11-02.
 
 ---
@@ -152,7 +152,7 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 |---|---|---|---|---|---|---|
 | **Media limits** | MP4/WebM/MOV; H.264, H.265, VP8, VP9; max 4 GB; 23–60 fps; 360–4096 px; duration from `max_video_post_duration_sec` (3, 5 or 10 min). Photos: JPEG or WebP, 1080p or less, 20 MB, up to 35. | Image: JPEG only, 8 MB, 4:5 to 1.91:1, width 320–1440. Reel: MOV/MP4 with moov atom first, H.264/HEVC, 23–60 fps, 3 s–15 min, **300 MB**. Story video: 3–60 s, 100 MB. | Max 256 GB. 15 min unless the channel is verified (12 h is UNVERIFIED). Shorts: 3 min or less. | Image 5 MB; GIF 15 MB; video 20 min / 8 GB (Premium: 125 min / 16 GB). | Reels: 9:16, min 540x960, 24–60 fps, **3–90 s**. Reels file size UNVERIFIED (500 MB per third parties). Page video 10 GB / 240 min UNVERIFIED. | API: MP4, 5–300 s, up to 1 GB; images on Stories. Captions/links may force 9:16. Web uploader: 5–60 s, at least 540x960. |
 | **Caption limits** | Video caption 2,200 UTF-16 runes. Photo title 90, description 4,000. | 2,200 chars, 30 hashtags, 20 @ tags. Up to 3 collaborators. Alt text 1,000. | Title 100 chars (no `<` or `>`). Description 5,000 **bytes**. Tags 500 chars total. You may not set shorter limits (RMF). | 280 weighted chars (URL counts as 23; emoji and CJK count 2). Premium: 25,000. | Post text about 63,206 (UNVERIFIED). | Spotlight description 160 chars. Story/Spotlight caption 1–250 chars, Latin/Greek/Cyrillic, no emoji. Link sticker text 40. |
-| **Rate limits / caps** | 6 req/min per user token on init. About **15 posts/day per creator** (Direct Post, shared across all apps). **5 pending drafts/24 h**. Active-creator cap set at audit. | **50** posts/24 h (docs also say 100; read live). 400 containers/24 h. BUC limits (header `X-Business-Use-Case-Usage`). | **100 uploads/day per project** (all users). 10,000 units/day for other calls. Unpublished per-channel daily limit. | `POST /2/tweets`: 100/15 min per user, 10,000/24 h per app. Media endpoints: 1,875/15 min per user. | Reels: **30 per Page per 24 h**. BUC limits. | Not documented (UNVERIFIED). |
+| **Rate limits / caps** | 6 req/min per user token on init. About **15 posts/day per creator** (Direct Post, shared across all apps). **5 pending drafts/24 h**. Active-creator cap set at audit. | **50** posts/24 h (docs also say 100; read live). 400 containers/24 h. BUC limits (header `X-Business-Use-Case-Usage`). | **100 uploads/day per project** (all users). 10,000 units/day for other calls. Unpublished per-channel daily limit. | `POST /2/tweets`: 100/15 min per user, 10,000/24 h per app. Media INIT/APPEND/FINALIZE: 1,875/15 min per user; STATUS: 1,000/15 min. | Reels: **30 per Page per 24 h**. BUC limits. | Not documented (UNVERIFIED). |
 | **Token lifetimes** | Access 2 h; refresh 180 d, **rotates** [LIVE]. Auth code 5 min, single use. | IG Login: short 1 h; long-lived 60 d, refresh after 24 h. Unified Login: set by config. | Access about 1 h. Refresh long-lived in Production; **7 days in Testing**. | Access 2 h; refresh with `offline.access`, single use, **rotates**. | User short-lived 1–2 h; long-lived about 60 d; Page token "at least 60 days". | Access 1 h; refresh token issued. Auth code 10 min. |
 | **OAuth / PKCE** | Web: server-side secret exchange; redirect URIs https, static, no query, up to 10. Desktop: PKCE required, loopback. | IG Login: **no PKCE**, server-side secret exchange, exact redirect match. | PKCE supported ("Always use PKCE" for desktop). Loopback for desktop. | PKCE required (public or confidential). Exact callback match. | PKCE supported but marked "still in testing"; Strict Mode exact redirects. | Secret exchange; PKCE not mentioned (UNVERIFIED). |
 | **Approval UX demands** | creator_info query first; show nickname and avatar; privacy dropdown with **no default**; Comment/Duet/Stitch off by default; commercial disclosure; music-usage consent; preview; send only after explicit consent. | One screencast per permission; visible branded login button; consent before publishing; captions editable. | Show and link YouTube ToS and Google Privacy Policy; easy revoke; delete data within 30 days of revoke; title and privacy picker required. | Express consent per user; show exactly what will post; no identical posts across multiple accounts. | Same as Instagram, plus privacy policy, terms and a data-deletion callback. | Describe intended use to your Snap contact. Web uploader asks for Creator Terms per post (API requirement UNVERIFIED). |
@@ -327,7 +327,7 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 ### Media transfer per platform (API mode)
 | Platform | Method | Why |
 |---|---|---|
-| TikTok video | **FILE_UPLOAD**: Workflow streams R2 ranged reads in chunks of 64 MB or less (`FixedLengthStream`) | No domain needed. Chunk size is within TikTok's 5–64 MB and our 100 MiB rule. |
+| TikTok video | **FILE_UPLOAD**: Workflow streams R2 ranged reads in fixed 50 MiB chunks (`FixedLengthStream`) | No domain needed. The remainder goes in the final chunk, which TikTok allows up to 128 MB, so every chunk stays under our 100 MiB rule (my inference). |
 | TikTok photos | **PULL_FROM_URL** from the media route on a **verified domain** | Pull is the only option for photos. Needs the domain (M5). |
 | Instagram (IG Login) | **Pull** `video_url` / `image_url` from the media route | IG Login has no resumable upload. No domain verification is documented (UNVERIFIED). |
 | Instagram (FB Login for Business, if chosen) | Resumable push to `rupload.facebook.com` | Push avoids exposing a URL. |
@@ -391,7 +391,7 @@ All times are stored as UTC epoch milliseconds. IDs are random (ULID or 128-bit)
 - **Disconnect** revokes and deletes tokens.
 
 ### Config, remote config and kill switches
-- **Static config** (Worker vars): `APP_ORIGIN`, `MEDIA_ORIGIN`, `MEDIA_RETENTION_DAYS`, LS IDs. **Secrets:** platform client secrets, `TOKEN_KEY_V1…`, LS API key, webhook secret, licence signing key, config-feed signing key.
+- **Static config** (Worker vars): `APP_ORIGIN`, `MEDIA_ORIGIN`, `MEDIA_RETENTION_DAYS`, LS IDs. **Secrets:** platform client secrets, `TOKEN_KEY_V1…`, LS API key, webhook secret, licence signing key, config-feed signing key, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (for presigned part URLs), `VAPID_PRIVATE_KEY` (web push).
 - **Remote config:** the `platform_status` and `remote_config` tables in D1, cached about 60 s in Worker memory or KV. You change modes and defaults **without a release**.
 - **Kill switches:**
   - global "pause all automatic posting"
@@ -403,7 +403,7 @@ All times are stored as UTC epoch milliseconds. IDs are random (ULID or 128-bit)
 
 ### Security checklist
 - **Token encryption:** AES-GCM with a fresh IV per write. Keys live in Worker secrets with a `key_version` column, and a re-encrypt job runs on rotation.
-- **OAuth:** `state` on every flow. PKCE where supported (TikTok desktop, YouTube, X, FB). **Server-side secret exchange for IG Login, TikTok web and Snapchat.** Exact redirect URLs.
+- **OAuth:** `state` on every flow. PKCE where supported (YouTube, X, FB). **Server-side secret exchange for TikTok, IG Login and Snapchat.** Desktop uses the same Worker web flow in the system browser. Exact redirect URLs.
 - **Web:** httpOnly + Secure cookies, CSRF token + Origin check, and an ownership check (`customer_id`) on every query.
 - **Media:** unguessable R2 keys, short-lived presigned and media-route URLs, and CORS limited to `APP_ORIGIN`.
 - **Rate limits:** on sign-in, codes and licence checks. The CF binding is coarse; D1/DO counters handle strict limits.
@@ -416,6 +416,7 @@ All times are stored as UTC epoch milliseconds. IDs are random (ULID or 128-bit)
 ```ts
 export type Platform = 'tiktok' | 'instagram' | 'youtube' | 'x' | 'facebook' | 'snapchat' | 'fake';
 export type Mode = 'api' | 'draft' | 'intent' | 'handoff';           // 'assisted' intentionally absent
+// Rule: modes.draft.supported is true only for TikTok (the only manual mode allowed on a schedule).
 export type Approval = 'not_applied' | 'pending' | 'approved' | 'rejected' | 'not_needed';
 
 export interface AdapterConfig {
@@ -479,9 +480,9 @@ export interface PlatformAdapter {
 |---|---|---|---|---|---|
 | **TikTok** | Handoff (TikTok Studio / Web Share). Sandbox for testing. | After `video.upload` review: **Draft in TikTok**, schedulable. After the audit: Automatic (Direct Post). | **Draft in TikTok** once approved; handoff until then | No audit needed. The user presses Post in TikTok. 5 pending drafts/24 h. | **No.** Global ToS bans scripts that interact with the service. Embedded sign-in UNVERIFIED. |
 | **Instagram** | Handoff (`instagram.com` / Web Share to the IG app). Automatic for app-role testers only. | Automatic for professional accounts (App Review + Business Verification). | **Automatic** for pro accounts; **handoff** for personal accounts | Personal accounts have no API. No web intent exists. | **No.** Meta ADC bans scripting actions; Meta has sued posting-automation tools. |
-| **YouTube** | **Automatic** (public allowed since 2026-11-02), up to 100 uploads/day for the project; 100-user cap until verified. Handoff (Studio). | OAuth verification removes the user cap. The quota audit raises 100/day. | **Automatic**; handoff when the daily quota is used up. Option: "upload private, publish in Studio". | Only real automatic route that needs no approval besides X. | **No.** Google blocks embedded sign-in; ToS bans automated access. |
+| **YouTube** | **Automatic** (public allowed since 2026-11-02), up to 100 uploads/day for the project; 100-user cap until verified. Handoff (Studio). | OAuth verification removes the user cap. The quota audit raises 100/day. | **Automatic**; handoff when the daily quota is used up. Option: "upload private, publish in Studio", sent only when the user presses Send now, never on a schedule. | Only real automatic route that needs no approval besides X. | **No.** Google blocks embedded sign-in; ToS bans automated access. |
 | **X** | **Automatic** (paid per post). **Intent** (free, text and links). Handoff for media without the API. | n/a (no review) | **Automatic** within the licence's X cap. For link posts, recommend the **intent** default (decision I-2). | API cost is $0.015, or $0.20 with a link. | **No.** "Scripting the X website" is banned (permanent suspension). |
-| **Facebook** | Share Dialog (links, profile). Handoff. Automatic for app-role users only. | Automatic for **Pages**. API draft variant (Reel DRAFT / unpublished post). | **Automatic** for Pages; **Share Dialog / handoff** for profiles | The API cannot post to profiles or groups. | **No.** Same Meta terms; embedded login blocked. |
+| **Facebook** | Share Dialog (links, profile). Handoff. Automatic for app-role users only. | Automatic for **Pages**. (Meta's API draft is not offered as a scheduled mode.) | **Automatic** for Pages; **Share Dialog / handoff** for profiles | The API cannot post to profiles or groups. | **No.** Same Meta terms; embedded login blocked. |
 | **Snapchat** | Handoff (`my.snapchat.com` / `profile.snapchat.com` / Web Share). Share link for URLs. | After **allowlist**: Automatic for Public Profile admins. Spotlight shows "Submitted" until Snap reviews it. | **Handoff** | Allowlist access depends on a Snap contact, so it is uncertain. | **No.** ToS bans "automated or semi-automated means". |
 
 **Rules in every manual mode**
@@ -533,7 +534,7 @@ export interface PlatformAdapter {
 | TikTok, Instagram, Facebook, YouTube | No paid tier found | $0 |
 | Snapchat | No fee found (UNVERIFIED that it is free) | $0 |
 
-**Bottom line:** X is the only real variable cost. **Cloudflare is about $1 per 1,000 posts** on top of the $5 base. The YouTube share (500 uploads) only works if it stays at 100 or fewer per day across all users.
+**Bottom line:** X is the only real variable cost. Cloudflare usage is **≈ $0.78 per 1,000 posts** at list price. At 1,000 posts/month the $5 base absorbs all but ≈ $0.03. The YouTube share (500 uploads) only works if it stays at 100 or fewer per day across all users.
 
 ---
 
@@ -570,7 +571,7 @@ Lead times are **not in the research** unless stated. "Weeks" is my assumption. 
 
 | # | Item | Needed by | Lead time | Notes |
 |---|---|---|---|---|
-| 1 | **Cloudflare Workers Paid** ($5/mo), plus an API token for GitHub Actions (Workers, D1, R2, Workflows edit) | M1 | Minutes | Free plan cannot run the engine. |
+| 1 | **Cloudflare Workers Paid** ($5/mo), plus an API token for GitHub Actions (Workers, D1, R2, Workflows edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the xpost bucket) as Worker secrets | M1 | Minutes | Free plan cannot run the engine. |
 | 2 | **GitHub repo** (one repo: `/web`, `/worker`, `/desktop`, `/shared`) + a public releases repo for the updater, and Actions secrets | M1 | Minutes | |
 | 3 | **Lemon Squeezy**: new xpost product and variants, store ID, product and variant IDs, API key, webhook secret, webhook URL set to the Worker | M1 | Hours | Plan names, prices, session and device limits per plan. |
 | 4 | **Domain** (recommend Cloudflare Registrar) | **M1 (recommended)**; M5 at the latest | Hours, then DNS | Unlocks email codes, Google/Meta verification and the TikTok media domain. |
@@ -578,9 +579,9 @@ Lead times are **not in the research** unless stated. "Weeks" is my assumption. 
 | 6 | **X developer account**, app, credits (+ $20 incentive), spending limit | M5 (X is first) | Same day | Callback URL is the Worker. |
 | 7 | **Google Cloud project**, OAuth consent screen, YouTube Data API; then **OAuth verification** and the **YouTube Audit and Quota Extension Form** | M5 (submit early) | Weeks (assumption) | Verification needs a verified domain homepage and a demo video. |
 | 8 | **TikTok developer app** (Login Kit + Content Posting), sandbox, `video.upload` review; later the **Direct Post audit** | M5 | Weeks (assumption) | Demo video required. Verify the media domain (DNS TXT). |
-| 9 | **Meta Business** app; **Business Verification**; App Review screencasts for each permission | M5 (Meta adapters); verification started at M1 | Weeks (assumption) | Start Business Verification at M1. Needs company documents. |
+| 9 | **Meta Business** app; **Business Verification**; App Review screencasts for each permission | M5 (Meta adapters); verification started at M1 | Weeks (assumption) | Start Business Verification at M1. Needs company documents (Assumption). |
 | 10 | **Snap Business Account**, OAuth app in **Ads Manager**, and a **Snap contact** for the allowlist | M5 (last adapter) | Unknown (depends on Snap) | Without a contact, Snapchat stays handoff only. |
-| 11 | **Apple Developer Program** ($99/yr), Developer ID cert, notarytool API key | M7 | Days | Needed for Mac auto-update. |
+| 11 | **Apple Developer Program** (fee not researched; Assumption: ~$99/yr), Developer ID cert, notarytool API key | M7 | Days | Needed for Mac auto-update. |
 | 12 | **Windows signing**: Azure Trusted Signing (recommended) or an OV/EV certificate | M7 | Days to weeks | Prices not researched. |
 | 13 | Support email address and brand assets (logo, colour) | M2 | — | |
 | 14 | Decisions in section I | Before M1 | — | |
@@ -611,7 +612,7 @@ Lead times are **not in the research** unless stated. "Weeks" is my assumption. 
 8. **Bridge or not.**
    - **Recommend: no bridge now.** Revisit only if TikTok's audit or Snap's allowlist stalls after launch. Needs your go-ahead either way.
 9. **Signing budget.**
-   - **Recommend:** Apple ($99/yr) and Azure Trusted Signing at M7. Without them, Mac users cannot auto-update (as in XLISTit).
+   - **Recommend:** Apple (Assumption: ~$99/yr) and Azure Trusted Signing at M7. Without them, Mac users cannot auto-update (as in XLISTit).
 10. **TikTok audit.**
     - **Recommend:** launch with "Draft in TikTok". Apply for the Direct Post audit once real usage exists, but build the required posting UX from day one.
 11. **YouTube quota.**
@@ -664,7 +665,7 @@ Routing rule: **Opus** for hard work (research and planning; tokens, OAuth, sess
 | **M2** Web UI on the fake adapter | Accounts, composer (master + per-platform overrides + platform fields), R2 signed multipart uploads, per-platform validation, schedule (calendar, queue), history and filters, drafts (autosave, duplicate). Light/dark, phone layout. | Validation rules use the verified limits (IG carousel 20, Snap video 5–300 s, etc.), kept in config. | Upload signing + validation rules → **Opus**. Fake adapter, screens, CRUD routes → **Sonnet**. |
 | **M3** Handoff, X intent, reminders | Handoff for all six. X web intent. Reminders (browser notifications). "Ready to post" list. Manual statuses: waiting for you, handed off, confirmed posted, paste link. | Also FB Share Dialog (links) and Snap share link (URLs only), found in Step 0. xpost is usable with no approvals. | Handoff, intents, reminders, list → **Sonnet**. Review → **Opus**. |
 | **M4** Publishing engine on the fake adapter | Scheduling, retries with backoff, 429 handling, idempotency, quotas, spend caps, licence pause. | Design: D1 source of truth, cron sweep each minute, one Workflow per target, no Queue (I-5). Per-account limits enforced by a Durable Object. Global YouTube daily counter. | Engine → **Opus**. Extra failure-case tests → **Sonnet**. Review → **Opus**. |
-| **M5** API adapters, easiest access first | One at a time; each works in private/test mode before any approval. | Suggested order by access: **X** (no review, pay per use) → **YouTube** (public allowed since 2026-11-02; 100 uploads/day shared) → **TikTok draft** (`video.upload` review; sandbox first) → **Instagram + Facebook** (app-role testers until App Review) → **Snapchat** (only if allowlisted). YouTube, TikTok and Meta need the domain. | All adapters, OAuth, media transfer → **Opus**. Platform-specific UX screens (e.g. TikTok's required post screen) → **Sonnet**. |
+| **M5** API adapters, easiest access first | One at a time; each works in private/test mode before any approval (except Snapchat, which cannot post at all until allowlisted). | Suggested order by access: **X** (no review, pay per use) → **YouTube** (public allowed since 2026-11-02; 100 uploads/day shared) → **TikTok draft** (`video.upload` review; sandbox first) → **Instagram + Facebook** (app-role testers until App Review) → **Snapchat** (only if allowlisted). YouTube, TikTok and Meta need the domain. | All adapters, OAuth, media transfer → **Opus**. Platform-specific UX screens (e.g. TikTok's required post screen) → **Sonnet**. |
 | **M6** Approval pack | Privacy policy, terms, data-deletion page, demo script per platform, prepared as each adapter works. You submit. | Meta data-deletion callback endpoint. Start Meta Business Verification at M1 (long lead). | Drafts → **Sonnet**. Claims checked against the code → **Opus**. |
 | **M7** Desktop app | XLISTit shell, activation + device binding, deactivate in settings, offline grace, offline drafts, notifications, drag-and-drop, file reveal, update assistant, signed Mac/Win installers, Releases feed. | Turn on Electron cookie-encryption fuse. New signing key (not XLISTit's). Signing in CI (XLISTit never did). Needs Apple + Windows certs (H-11, H-12). | Licence client, updater, signing pipeline → **Opus**. Shell wiring, desktop UI → **Sonnet**. |
 | **M8** Assisted fill | Only for platforms you approve. | **Recommend: approve none.** Terms forbid it on all six; Google and Meta block embedded sign-in (I-3). | **Opus**, only if you approve a platform. |
