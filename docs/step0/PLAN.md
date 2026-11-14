@@ -1,6 +1,7 @@
 # xpost: Step 0 research and plan
 
 Date: 2026-11-14. Status: **draft for owner approval. No code has been written.**
+Revision: 2026-11-14 (b). Applies the owner's **no-API decision** (see the box below).
 
 Source reports (copied verbatim): `docs/step0/research/`
 - `xlistit.md`: XLISTit repo analysis (`/home/user/marketplace-crosslister`, read-only)
@@ -12,8 +13,26 @@ Source reports (copied verbatim): `docs/step0/research/`
 How to read the labels:
 - **[LIVE]** / **[DIRECT]**: checked against the live official page on 2026-11-14.
 - **[search]**: from search-result summaries of official pages, not read word for word.
+- **[3P]**: third-party or community source only.
 - **UNVERIFIED**: no official source found. Settle it before relying on it (section J).
 - **Assumption**: a number I chose to make an estimate work. Not from research.
+- **Research fact**: true about a platform's API, but not used by the plan (xpost uses no platform APIs).
+
+---
+
+> ### Owner decisions (2026-11-14)
+> 1. **No platform APIs.** "Do not use any API, as they cost money." The owner chose "Drop all APIs" after being told only X charges, and that this means nothing ever posts automatically.
+>    - No X API, no TikTok Content Posting API (not even inbox drafts), no YouTube Data API, no Instagram/Facebook Graph API, no Snapchat Public Profile API.
+>    - No platform sign-in connections, no platform tokens stored, no platform developer accounts, no app reviews.
+> 2. **Assisted fill on all six platforms** (desktop only, off by default, opt-in per platform after a plain risk warning). Details in section E and decision I-3.
+>
+> **What this means, in plain words:**
+> - **Nothing posts automatically.** A person presses Post every time, on every platform.
+> - **No approvals are needed** from TikTok, Meta, Google, X or Snap. xpost can serve real users as soon as M3 ships.
+> - **X costs nothing.** X API spend is $0. Free X web intents are links, not API calls.
+> - **Scheduling means reminders.** Each scheduled item becomes a reminder with a one-click action.
+> - **The desktop app is the most capable client**, because assisted fill lives there.
+> - Personal Instagram and Facebook profiles work the same as business ones (no API account-type limits apply).
 
 ---
 
@@ -21,51 +40,63 @@ How to read the labels:
 
 xpost can be built on the planned stack: Cloudflare for the whole backend, GitHub, and Lemon Squeezy. XLISTit's licence Worker code ports almost unchanged.
 
-The main findings:
-- **Only YouTube and X can publish automatically to real users on day one.** YouTube dropped its "unaudited means private" rule on 2026-11-02, but all xpost users share 100 uploads a day. X needs no review, but every post costs xpost money.
-- **TikTok, Instagram and Facebook need approvals first.** TikTok needs scope review for inbox drafts and an audit for automatic public posts. Meta needs App Review plus Business Verification. **Snapchat's posting API is allowlist-only**, through a Snap contact.
-- **Assisted fill: owner approved all six platforms (2026-11-14)**, after this terms review. All six platforms' terms restrict it, so it is off by default and the user opts in per platform after a plain risk warning. Where sign-in is blocked in the in-app window (likely YouTube), that platform falls back to handoff, with no workaround.
-- **Handoff works everywhere** and is the fallback for every platform.
-- **Your request for "bring your own X keys" conflicts with X's Developer Agreement and Policy.** I propose an xpost-owned X app with a per-licence spending cap instead.
-- **A real domain is needed earlier than planned.** TikTok photo pulls need a verified domain. Google verification needs a verified-domain homepage. Meta review needs public privacy, terms and data-deletion URLs (a domain is strongly advisable). Email codes need a sending domain. Cloudflare Workers Paid ($5/month) is needed from M1.
-- **Scheduling:** I recommend D1 as the source of truth, a cron sweep every minute, and one Workflow per target, with no Queue.
+**Plan after the owner decisions:**
+- **Three modes, all "you press Post":**
+  - **Intent / share link** (free, no keys, just a link the user opens): X web intent, Facebook sharer, Snapchat share link.
+  - **Handoff** (all six): open the upload page in the user's normal browser, copy the caption, hand over the file. On phones, the Web Share API share sheet.
+  - **Assisted fill** (desktop, opt-in, all six): xpost fills the platform's own upload form in an in-app window; the user signs in and presses Post.
+- **Mode preference per platform:** desktop = assisted fill (if opted in and sign-in works) > intent/share (where it exists and fits the post) > handoff. Web = intent > handoff.
+- **Scheduling** = a reminder scheduler: D1 as the source of truth, a cron sweep every minute, web push plus desktop notifications, optional email.
+- **No Workflows, no Queues, no Durable Objects** are needed (section C).
+- **Domain:** no longer needed for platform verification. Still recommended for email sign-in codes, the update feed and branding. Not required until launch; workers.dev works for development.
+- **Cost:** Cloudflare usage is cents per 1,000 posts; the $5/month Workers Paid base absorbs it at MVP scale (section F).
+
+**Research findings that still matter** (all true facts; the API ones no longer affect the plan):
+- **All six platforms' terms restrict automation outside their APIs.** This is why assisted fill is opt-in with a plain warning (row 18–19 below).
+- **Google blocks sign-in in embedded browsers** (row 20). YouTube assisted fill will likely fail its sign-in test and fall back to handoff.
+- **Meta blocks Facebook Login in embedded browsers** (section B). Instagram/Facebook website sign-in in an app window is UNVERIFIED; the M8 test settles it.
+- **Free intent routes exist** for X (text, links, hashtags; no media), Facebook (links) and Snapchat (URLs only).
+- **Handoff works everywhere.**
+- **API-only findings are now moot:** approvals, audits, the YouTube 100/day quota, X per-post pricing, Snap's allowlist, the "bring your own X keys" conflict, TikTok media-domain verification.
 
 ### What changed vs your expected constraints
+
+These are research verdicts. They are still true. Rows 1–12, 14–16 and 21–22 are about platform APIs, so under the no-API decision they **no longer affect the plan**. Rows 13 and 17–20 still shape it.
 
 | # | Your expected constraint | Verdict | Evidence |
 |---|---|---|---|
 | 1 | TikTok: an unaudited app can only post privately | **CONFIRMED** | "Unaudited API clients can only post contents in SELF_ONLY viewership." https://developers.tiktok.com/docs/en/content-posting-api-get-started |
 | 2 | TikTok: few users on an unaudited app | **CONFIRMED, made specific** | Up to **5 users per 24 h**, and each account must be set to private. Same page; also https://developers.tiktok.com/doc/content-posting-api-reference-direct-post |
 | 3 | TikTok: public posting needs an audit | **CONFIRMED** | The audit is a "Terms of Service compliance" audit. The sandbox gives no public posting. https://developers.tiktok.com/docs/en/add-a-sandbox |
-| 4 | TikTok: inbox draft has a lower bar | **CONFIRMED [LIVE], with a caveat** | It needs `video.upload` scope approval (app review with a demo video), not the audit. Cap: **5 pending shares per 24 h**. The Photo reference has an ambiguous "unaudited → private" line, so confirm with a sandbox test. https://developers.tiktok.com/doc/content-posting-api-get-started-upload-content , https://developers.tiktok.com/doc/content-posting-api-reference-upload-video |
+| 4 | TikTok: inbox draft has a lower bar | **CONFIRMED [LIVE], with a caveat** | It needs `video.upload` scope approval (app review with a demo video), not the audit. Cap: **5 pending shares per 24 h**. https://developers.tiktok.com/doc/content-posting-api-get-started-upload-content , https://developers.tiktok.com/doc/content-posting-api-reference-upload-video |
 | 5 | YouTube: uploads from an unaudited project are locked private | **CHANGED [LIVE]** | Revision history, 2026-11-02: unverified projects "are no longer restricted to private viewing mode". https://developers.google.com/youtube/data/revision_history |
-| 6 | YouTube: upload quota is per project and shared | **CONFIRMED; units CHANGED [LIVE]** | Since 2026-06-01, uploads use their own bucket: **100 `videos.insert` calls per day per project**, for all xpost users combined. https://developers.google.com/youtube/v3/docs/videos/insert , https://developers.google.com/youtube/data/guides/quota_and_compliance_audits |
-| 7 | Instagram: professional accounts only | **CONFIRMED [DIRECT]** | Business and Creator accounts only. https://developers.facebook.com/documentation/instagram-platform/overview |
-| 8 | Instagram: App Review needed | **CONFIRMED, with nuance** | Advanced Access needs App Review **and Business Verification**. Without them, only people with a role on the app can connect. https://developers.facebook.com/documentation/instagram-platform/app-review |
-| 9 | Facebook: Pages only | **CONFIRMED** | Personal profiles: `publish_actions` was removed in 2018. Groups API removed in 2024. [search] |
+| 6 | YouTube: upload quota is per project and shared | **CONFIRMED; units CHANGED [LIVE]** | Since 2026-06-01: **100 `videos.insert` calls per day per project**. https://developers.google.com/youtube/v3/docs/videos/insert , https://developers.google.com/youtube/data/guides/quota_and_compliance_audits |
+| 7 | Instagram: professional accounts only | **CONFIRMED [DIRECT]** (API only) | Business and Creator accounts only. https://developers.facebook.com/documentation/instagram-platform/overview |
+| 8 | Instagram: App Review needed | **CONFIRMED, with nuance** | Advanced Access needs App Review **and Business Verification**. https://developers.facebook.com/documentation/instagram-platform/app-review |
+| 9 | Facebook: Pages only | **CONFIRMED** (API only) | Personal profiles: `publish_actions` was removed in 2018. Groups API removed in 2024. [search] |
 | 10 | Facebook: App Review needed | **CONFIRMED** | Same rules as Instagram. |
 | 11 | X: pay per use | **CONFIRMED [LIVE]** | No contracts, no minimum spend, prepaid credits. https://docs.x.com/x-api/getting-started/pricing |
-| 12 | X: posts with links cost more | **CONFIRMED [LIVE]** | $0.015 per post; **$0.200 with a URL** (about 13x). Same page. |
-| 13 | X: web intent is free | **CONFIRMED [LIVE]** | `https://x.com/intent/tweet` takes text, url, hashtags, via, related and in_reply_to. **No media.** https://docs.x.com/x-for-websites/post-button/guides/web-intent |
-| 14 | Snapchat: posting goes through the Public Profile API | **CONFIRMED [LIVE]** | Story, Spotlight and Saved Story endpoints. https://developers.snap.com/marketing-api/Public-Profile-API/ProfileAssetManagement |
-| 15 | Snapchat: public profiles only | **CONFIRMED** | Endpoints sit under `/public_profiles/{id}`. Only profile Admins can post. |
-| 16 | Snapchat: approval may be needed | **CHANGED: stricter [LIVE]** | "The Public Profile API is currently allowlist only." You need a Snap Business Account, an OAuth app made in **Ads Manager** (not the Developer Portal), and a Snap contact. https://developers.snap.com/marketing-api/Public-Profile-API/GetStarted |
-| 17 | Snapchat: a web uploader exists | **CONFIRMED** | profile.snapchat.com, my.snapchat.com and snapchat.com/spotlight. The help pages disagree on which one is canonical. |
-| 18 | Terms restrict automation outside the APIs | **CONFIRMED for all six** | Meta: "Platform APIs are the only allowable means… The use of scripts… to automate actions… outside of the Platform APIs is not allowed" [DIRECT]. TikTok global ToS: no "automated scripts to… interact with the Services". YouTube ToS: no "automated means". Snap ToS [search]: no "automated or semi-automated means". |
-| 19 | X bans scripting its website | **CONFIRMED [LIVE]** | Automation Rules ban "scripting the X website". Developer Guidelines: "No scraping, browser automation… permanent suspension." https://docs.x.com/developer-guidelines |
-| 20 | Google blocks embedded sign-in | **CONFIRMED [LIVE policy text]** | "A developer must not direct a Google OAuth 2.0 authorization request to an embedded user-agent." https://developers.google.com/identity/protocols/oauth2/policies |
-| 21 | TikTok and Instagram need media-URL domain verification | **Half CHANGED** | TikTok PULL_FROM_URL: **CONFIRMED** (verify the domain or URL prefix; https; no redirects). Instagram: **no verification documented** (UNVERIFIED). It only needs a public HTTPS URL. |
-| 22 | Instagram Login has no PKCE | **CONFIRMED [DIRECT]** | Only the `client_secret` exchange is documented, and long-lived token calls "must be made in server-side code". |
+| 12 | X: posts with links cost more | **CONFIRMED [LIVE]** | $0.015 per post; **$0.200 with a URL**. Same page. |
+| 13 | X: web intent is free | **CONFIRMED [LIVE]** — **used by the plan** | `https://x.com/intent/tweet` takes text, url, hashtags, via, related and in_reply_to. **No media.** https://docs.x.com/x-for-websites/post-button/guides/web-intent |
+| 14 | Snapchat: posting goes through the Public Profile API | **CONFIRMED [LIVE]** | https://developers.snap.com/marketing-api/Public-Profile-API/ProfileAssetManagement |
+| 15 | Snapchat: public profiles only | **CONFIRMED** (API only) | Endpoints sit under `/public_profiles/{id}`. |
+| 16 | Snapchat: approval may be needed | **CHANGED: stricter [LIVE]** | "The Public Profile API is currently allowlist only." https://developers.snap.com/marketing-api/Public-Profile-API/GetStarted |
+| 17 | Snapchat: a web uploader exists | **CONFIRMED** — **used by the plan** | profile.snapchat.com, my.snapchat.com and snapchat.com/spotlight. The help pages disagree on which one is canonical. |
+| 18 | Terms restrict automation outside the APIs | **CONFIRMED for all six** — **drives the assisted-fill warning** | Meta: "Platform APIs are the only allowable means… The use of scripts… to automate actions… outside of the Platform APIs is not allowed" [DIRECT]. TikTok global ToS: no "automated scripts to… interact with the Services". YouTube ToS: no "automated means". Snap ToS [search]: no "automated or semi-automated means". |
+| 19 | X bans scripting its website | **CONFIRMED [LIVE]** — **drives the assisted-fill warning** | Automation Rules ban "scripting the X website". Developer Guidelines: "No scraping, browser automation… permanent suspension." https://docs.x.com/developer-guidelines |
+| 20 | Google blocks embedded sign-in | **CONFIRMED [LIVE policy text]** — **affects YouTube assisted fill** | "A developer must not direct a Google OAuth 2.0 authorization request to an embedded user-agent." https://developers.google.com/identity/protocols/oauth2/policies |
+| 21 | TikTok and Instagram need media-URL domain verification | **Half CHANGED** (API only) | TikTok PULL_FROM_URL: CONFIRMED. Instagram: no verification documented (UNVERIFIED). |
+| 22 | Instagram Login has no PKCE | **CONFIRMED [DIRECT]** (API only) | Only the `client_secret` exchange is documented. |
 
-### New findings you did not list
-- **YouTube:** the private lock was removed on 2026-11-02 [LIVE]. Uploads now have their own **100/day** bucket [LIVE]. Without OAuth verification there is a 100-user cap and a warning screen, and Testing-mode refresh tokens die after 7 days.
-- **TikTok:** max 5 posting users per 24 h while unaudited. Max **5 pending inbox drafts per 24 h**. Access tokens last **2 h** and refresh tokens **180 d**, and refresh tokens rotate [LIVE]. "An app that copies arbitrary contents from other platforms to TikTok" is not acceptable, so position xpost as "write once, post everywhere".
-- **Instagram:** Instagram Login needs **no Facebook Page** and no business portfolio. Carousels now take **up to 20 items** [DIRECT]. Meta's docs disagree on the daily cap (50 vs 100), so read `content_publishing_limit` at runtime and design for 50. There is also a cap of **400 containers per 24 h**. **Resumable upload works only with Facebook Login for Business**, so Instagram Login apps must let Meta pull media from a public URL. A third setup, "Unified Login", is now recommended by Meta, but it requires a business portfolio.
-- **Facebook:** Reels are capped at **30 per Page per 24 h** [DIRECT]. The Share Dialog has a new `hashtag` parameter, but no text parameter.
-- **X:** **bring-your-own-keys is forbidden** by the Developer Agreement and Policy [LIVE]. Media-upload pricing is not published (UNVERIFIED). A $20 credit incentive exists.
-- **Snapchat:** API video runs **5–300 s** and images are allowed on Stories [LIVE]. Spotlight posts go through **per-post review** (SUBMITTED, then LIVE or REJECTED). Media must be **AES-256-CBC encrypted** before upload. Creative Kit for Web needs no review, but it shares **URLs only**.
-- **Cloudflare:** new projects should use **Workers with Static Assets, not Pages**. Workflow step and storage billing started 2026-08-10. The Rate Limiting binding is approximate.
-- **Bridge report correction:** `cloudflare_bridges.md` says bridges are needed because YouTube locks unaudited uploads to private. That is **out of date** since 2026-11-02.
+### Other research findings (facts; mostly moot under the no-API decision)
+- **YouTube:** the private lock was removed on 2026-11-02 [LIVE]. Uploads have their own **100/day** project bucket [LIVE]. Moot.
+- **TikTok:** API posting and draft caps (5 users / 5 pending drafts per 24 h) are moot. Still relevant: "An app that copies arbitrary contents from other platforms to TikTok" is not acceptable to TikTok, so position xpost as "write once, post everywhere".
+- **Instagram:** carousels take **up to 20 items** [DIRECT] (API limit; web may differ, UNVERIFIED). API caps and login types are moot.
+- **Facebook:** the Share Dialog has a `hashtag` parameter but no text parameter. It needs an `app_id` (see section E).
+- **X:** "bring-your-own-keys" is forbidden by the Developer Agreement and Policy [LIVE]. **Moot**: xpost uses no X API at all.
+- **Snapchat:** Creative Kit for Web needs no review and shares **URLs only**. The web uploader takes .mp4, 5–60 s, at least 540x960 (businesshelp).
+- **Cloudflare:** new projects should use **Workers with Static Assets, not Pages**. Cron changes take up to 15 min and runs can be missed.
+- **Bridge report correction:** `cloudflare_bridges.md` says bridges are needed because YouTube locks unaudited uploads to private. Out of date since 2026-11-02, and moot anyway (section G).
 
 ---
 
@@ -87,7 +118,7 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 - **All licence decisions already happen in the Worker.** It uses Web Crypto and Zod (`website/lib/licence.ts`, `lemonsqueezy.ts`, `webhook.ts`, `token.ts`).
 - The product check is enforced: store, product and variant IDs (`licence.ts:178-185`).
 - Device binding uses the fingerprint inside the LS instance name.
-- The app verifies an Ed25519 token offline. It has a 7-day offline grace, re-validates every 24 h, and has a clock-rollback guard.
+- The app verifies an Ed25519 licence token offline. It has a 7-day offline grace, re-validates every 24 h, and has a clock-rollback guard.
 - The webhook verifies its HMAC signature. **It handles only `order_refunded`.** Cancellation and expiry are left to the daily validate.
 
 ### Shell and updater
@@ -98,6 +129,7 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 
 ### Assisted mode
 - Uses a `BrowserWindow`, persistent partitions, an isolated-world script, real input events, and CDP file attach.
+- Captures the live listing URL when the site navigates to it.
 - Selector JSON ships signed from the Worker.
 - **There is no per-marketplace kill switch.**
 - **The cookie-encryption fuse is off**, so marketplace sessions are not keychain-protected. The XLISTit handover doc wrongly says they are.
@@ -108,20 +140,21 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 | Licence logic (activate, validate, deactivate, devices) | `website/lib/licence.ts` | Fork. Remove the ambassador branches. Change the instance-name prefix and plan strings. |
 | LS client | `website/lib/lemonsqueezy.ts` | Copy as is. It includes the `fetch` wrap for Workers. |
 | Webhook HMAC check | `website/lib/webhook.ts` | Copy, then extend (see the next list). |
-| Token signing | `website/lib/token.ts` | Copy with **new prefixes** and a **new key**. |
+| Licence token signing | `website/lib/token.ts` | Copy with **new prefixes** and a **new key**. |
 | Config, rate limiting, error codes | `website/lib/config.ts`, `rate-limit.ts`, `codes.ts` | Copy. |
 | Desktop licence client | `src/main/licence/*`, `src/shared/licence*.ts` | Copy for xpost's Electron main process. Change the fingerprint salt and error codes. |
 | Test harnesses | `website/test/fake-ls.ts`, `tests/e2e/licence-stack.ts`, `tests/unit/licence-harness.ts` | Copy. They run the real Worker code against a fake LS. |
 | Electron shell | `src/main/index.ts` security setup, preload, IPC contract, updater service and card | Copy, then split the 400-line `index.ts`. |
+| Assisted-fill engine | XLISTit assisted mode (partitions, isolated world, CDP file attach, URL capture, signed selectors) | Port for M8. Add per-platform kill switch and cookie-encryption fuse. |
 | Discipline | error-code registry, log scrubbing, DB backup before migrations, signed remote config, `no-secrets` test | Copy. |
 | UI system | Tailwind `@theme` tokens, utilities, brutalist style | Mirror it with xpost's own logo and colour. |
 
 ### "Fix, don't copy" list
-1. **One key signs everything** in XLISTit. xpost gets its own keys: one for licence tokens and a separate one for config feeds. Desktop releases get a separate signing identity from XLISTit.
+1. **One key signs everything** in XLISTit. xpost gets its own keys: one for licence tokens and a separate one for config/selector feeds. Desktop releases get a separate signing identity from XLISTit.
 2. **Turn on the `enableCookieEncryption` fuse** from xpost's first release.
-3. **Webhook:** make the store check mandatory. Add the `subscription_*` events (cancelled, expired, and so on; confirm the exact names against LS docs in M2). Add an idempotency store.
+3. **Webhook:** make the store check mandatory. Add the `subscription_*` events (cancelled, expired, and so on; confirm the exact names against LS docs in M1). Add an idempotency store.
 4. **LS error mapping** relies on matching message text. Prefer status fields where LS provides them.
-5. **Deploy from GitHub Actions** with `wrangler deploy` and a scoped API token, not dashboard Git builds. You asked for Actions deploys.
+5. **Deploy from GitHub Actions** with `wrangler deploy` and a scoped Cloudflare API token, not dashboard Git builds. You asked for Actions deploys.
 6. **Signed releases from CI**: Apple Developer ID plus Windows signing. Publish to Releases automatically and add a macOS CI job.
 7. **Add a per-platform kill switch.** XLISTit only has a global minimum version.
 8. **IPC sender check**: use a custom `app://` scheme and an exact-origin check, not `startsWith('file://')`.
@@ -132,30 +165,41 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 
 ## B. Platform research tables
 
-### Table 1: access and routes
+**Read this as research facts.** Tables 1 and 2 describe what each platform offers, including its APIs. **xpost uses none of the APIs** (owner decision). The rows the plan still uses are: draft/share/intent route, web upload page, sign-in in an app window, terms on automation, and media/caption limits. Table 3 lists the limits xpost actually validates against.
+
+### Table 1: access and routes (research facts)
 
 | | TikTok | Instagram | YouTube | X | Facebook | Snapchat |
 |---|---|---|---|---|---|---|
-| **Posting API and content** | Content Posting API. Direct Post (`video.publish`) or Upload to inbox (`video.upload`). Video; photo carousel up to 35 images. | Graph API: container, then `media_publish`. Image, Reel, carousel (up to 20), Story. No link posts. | Data API `videos.insert`. Video; Shorts are automatic (3 min or less, vertical or square). No community posts via API (UNVERIFIED). | `POST /2/tweets`. Text, up to 4 images or 1 GIF or 1 video, threads via replies. | Pages API: feed (text, link), photos, video, Reels (`/video_reels`), Page Stories. | Public Profile API: Story (video or image), Spotlight (video), Saved Story. |
-| **Access needed** | App review for each scope (demo video, sandbox first). Audit for public Direct Post. | Meta app, App Review (Advanced Access), Business Verification. User needs a professional account. | Cloud project, OAuth verification (sensitive scope assumed, UNVERIFIED). Quota audit for more than 100 uploads/day. | Developer account and app, prepaid credits. No review. | Meta app, App Review, Business Verification. User needs the CREATE_CONTENT task on the Page. | **Allowlist** via a Snap contact. Business Account, and an OAuth app made in Ads Manager. |
-| **Unapproved app can** | Sandbox. Direct Post SELF_ONLY for up to 5 users/24 h, private accounts only. | Publish for app-role users only (admins, developers, testers). | **Public uploads** (since 2026-11-02). 100-user cap and warning screen until verified. | Everything, subject to cost and rate limits. | Publish to Pages for app-role users only. | Nothing for posting. Read-only public endpoints only. |
-| **Unapproved app cannot** | Post publicly; serve real users at scale. | Serve real users. | Exceed 100 uploads/day for the whole project. | n/a | Serve real users. Post to profiles or groups (ever). | Post at all. |
-| **Draft / share / intent route** | **Inbox draft** (Upload mode). The user posts in TikTok. Share Kit is mobile SDK only. | None on the web (UNVERIFIED negative). On phones, the Web Share API sheet goes to the IG app. No API drafts. | No intent (UNVERIFIED negative). Closest: upload as **private** or with `publishAt`; the user publishes in Studio. | **Web intent** `x.com/intent/tweet` (text and links, free, no media). | **Share Dialog** (`facebook.com/dialog/share`): links only, profile, new `hashtag` param. API drafts: Reel `video_state=DRAFT`, feed `published=false`. | **Share link** `snapchat.com/share?link=` or Creative Kit Web button: URLs only, no review. |
+| **Posting API and content** (not used) | Content Posting API. Direct Post or Upload to inbox. Video; photo carousel up to 35 images. | Graph API: container, then `media_publish`. Image, Reel, carousel (up to 20), Story. | Data API `videos.insert`. Video; Shorts automatic (3 min or less, vertical or square). | `POST /2/tweets`. Text, up to 4 images or 1 GIF or 1 video. | Pages API: feed, photos, video, Reels, Page Stories. | Public Profile API: Story, Spotlight, Saved Story. |
+| **API access needed** (not used) | App review per scope; audit for public Direct Post. | Meta app, App Review, Business Verification. | Cloud project, OAuth verification; quota audit above 100 uploads/day. | Developer account, prepaid credits. | Meta app, App Review, Business Verification. | **Allowlist** via a Snap contact. |
+| **Draft / share / intent route** | Share Kit is mobile SDK only. No web intent. | None on the web (UNVERIFIED negative). On phones, the Web Share API sheet goes to the IG app. | No intent (UNVERIFIED negative). | **Web intent** `x.com/intent/tweet` (text and links, free, no media). | **Share Dialog** (`facebook.com/dialog/share`, needs `app_id`; `hashtag` param) or legacy **`sharer.php?u=`** (no app ID) [3P]. Links only. | **Share link** `snapchat.com/share?link=` or Creative Kit Web button: URLs only, no review. |
 | **Web upload page** | `tiktok.com/tiktokstudio` then Upload (`/tiktokstudio/upload` UNVERIFIED) | `instagram.com` (Create); `business.facebook.com` | `studio.youtube.com` then Create | `x.com/compose/post` (path UNVERIFIED) or `x.com/home` | `facebook.com`; Business Suite (deep link UNVERIFIED) | `my.snapchat.com`, `profile.snapchat.com`, `snapchat.com/spotlight` |
-| **Sign-in in an app window** | No official statement (UNVERIFIED). Desktop OAuth must use the system browser. | FB Login blocked in embedded browsers; App Review rejects it. IG web sign-in UNVERIFIED. | **Blocked.** OAuth policy plus the embedded-framework block since 2019. | UNVERIFIED. Passkeys reported to hang; Google SSO is blocked. | **Blocked** in embedded browsers; rejected in review. | UNVERIFIED. |
-| **Terms on automation** | Global ToS bans "automated scripts to… interact with the Services". | Meta ADC [DIRECT]: APIs are the only allowed means; scripting actions is banned. | ToS bans "automated means". Developer Policies ban scraping. | Automation Rules ban "scripting the X website". Guidelines: permanent suspension. | Same as Instagram (Meta ADC, ToU 3.2.3). | ToS bans "automated or semi-automated means" and unapproved third-party apps. |
-| **Media ingest** | Video: FILE_UPLOAD chunks (5–64 MB, last up to 128 MB) **or** PULL_FROM_URL (verified domain, https, no redirects, 1 h timeout). Photos: **pull only**. | IG Login: **pull only** (`video_url` / `image_url`, public HTTPS). FB Login for Business: resumable push to `rupload.facebook.com`. | **Push only.** Resumable upload, chunks in multiples of 256 KB. | **Push only.** Chunked INITIALIZE, APPEND (5 MB or less), FINALIZE, STATUS. | Reels: push to `rupload` or a `file_url` header. Page video: resumable handle or `file_url`. Photos: `url` or upload. | **Push only.** Client-side AES-256-CBC, chunks up to 32 MB, up to 1 GB, media expires after 24 h. |
+| **Sign-in in an app window** | No official statement (UNVERIFIED). | FB Login blocked in embedded browsers. IG web sign-in UNVERIFIED. | **Blocked.** OAuth policy plus the embedded-framework block since 2019. | UNVERIFIED. Passkeys reported to hang; Google SSO is blocked. | **Blocked** in embedded browsers (FB Login). Website sign-in UNVERIFIED. | UNVERIFIED. |
+| **Terms on automation** | Global ToS bans "automated scripts to… interact with the Services". | Meta ADC [DIRECT]: APIs are the only allowed means; scripting actions is banned. | ToS bans "automated means". | Automation Rules ban "scripting the X website". Guidelines: permanent suspension. | Same as Instagram (Meta ADC, ToU 3.2.3). | ToS bans "automated or semi-automated means" and unapproved third-party apps. |
 
-### Table 2: limits, tokens and review demands
+### Table 2: API limits, tokens and review demands (research facts; API-only rows are moot)
 
 | | TikTok | Instagram | YouTube | X | Facebook | Snapchat |
 |---|---|---|---|---|---|---|
-| **Media limits** | MP4/WebM/MOV; H.264, H.265, VP8, VP9; max 4 GB; 23–60 fps; 360–4096 px; duration from `max_video_post_duration_sec` (3, 5 or 10 min). Photos: JPEG or WebP, 1080p or less, 20 MB, up to 35. | Image: JPEG only, 8 MB, 4:5 to 1.91:1, width 320–1440. Reel: MOV/MP4 with moov atom first, H.264/HEVC, 23–60 fps, 3 s–15 min, **300 MB**. Story video: 3–60 s, 100 MB. | Max 256 GB. 15 min unless the channel is verified (12 h is UNVERIFIED). Shorts: 3 min or less. | Image 5 MB; GIF 15 MB; video 20 min / 8 GB (Premium: 125 min / 16 GB). | Reels: 9:16, min 540x960, 24–60 fps, **3–90 s**. Reels file size UNVERIFIED (500 MB per third parties). Page video 10 GB / 240 min UNVERIFIED. | API: MP4, 5–300 s, up to 1 GB; images on Stories. Captions/links may force 9:16. Web uploader: 5–60 s, at least 540x960. |
-| **Caption limits** | Video caption 2,200 UTF-16 runes. Photo title 90, description 4,000. | 2,200 chars, 30 hashtags, 20 @ tags. Up to 3 collaborators. Alt text 1,000. | Title 100 chars (no `<` or `>`). Description 5,000 **bytes**. Tags 500 chars total. You may not set shorter limits (RMF). | 280 weighted chars (URL counts as 23; emoji and CJK count 2). Premium: 25,000. | Post text about 63,206 (UNVERIFIED). | Spotlight description 160 chars. Story/Spotlight caption 1–250 chars, Latin/Greek/Cyrillic, no emoji. Link sticker text 40. |
-| **Rate limits / caps** | 6 req/min per user token on init. About **15 posts/day per creator** (Direct Post, shared across all apps). **5 pending drafts/24 h**. Active-creator cap set at audit. | **50** posts/24 h (docs also say 100; read live). 400 containers/24 h. BUC limits (header `X-Business-Use-Case-Usage`). | **100 uploads/day per project** (all users). 10,000 units/day for other calls. Unpublished per-channel daily limit. | `POST /2/tweets`: 100/15 min per user, 10,000/24 h per app. Media INIT/APPEND/FINALIZE: 1,875/15 min per user; STATUS: 1,000/15 min. | Reels: **30 per Page per 24 h**. BUC limits. | Not documented (UNVERIFIED). |
-| **Token lifetimes** | Access 2 h; refresh 180 d, **rotates** [LIVE]. Auth code 5 min, single use. | IG Login: short 1 h; long-lived 60 d, refresh after 24 h. Unified Login: set by config. | Access about 1 h. Refresh long-lived in Production; **7 days in Testing**. | Access 2 h; refresh with `offline.access`, single use, **rotates**. | User short-lived 1–2 h; long-lived about 60 d; Page token "at least 60 days". | Access 1 h; refresh token issued. Auth code 10 min. |
-| **OAuth / PKCE** | Web: server-side secret exchange; redirect URIs https, static, no query, up to 10. Desktop: PKCE required, loopback. | IG Login: **no PKCE**, server-side secret exchange, exact redirect match. | PKCE supported ("Always use PKCE" for desktop). Loopback for desktop. | PKCE required (public or confidential). Exact callback match. | PKCE supported but marked "still in testing"; Strict Mode exact redirects. | Secret exchange; PKCE not mentioned (UNVERIFIED). |
-| **Approval UX demands** | creator_info query first; show nickname and avatar; privacy dropdown with **no default**; Comment/Duet/Stitch off by default; commercial disclosure; music-usage consent; preview; send only after explicit consent. | One screencast per permission; visible branded login button; consent before publishing; captions editable. | Show and link YouTube ToS and Google Privacy Policy; easy revoke; delete data within 30 days of revoke; title and privacy picker required. | Express consent per user; show exactly what will post; no identical posts across multiple accounts. | Same as Instagram, plus privacy policy, terms and a data-deletion callback. | Describe intended use to your Snap contact. Web uploader asks for Creator Terms per post (API requirement UNVERIFIED). |
+| **API media limits** | MP4/WebM/MOV; max 4 GB; 23–60 fps; 360–4096 px; 3, 5 or 10 min. Photos: JPEG or WebP, 20 MB, up to 35. | Image: JPEG only, 8 MB, 4:5 to 1.91:1. Reel: 3 s–15 min, **300 MB**. Story video: 3–60 s, 100 MB. | Max 256 GB. 15 min unless the channel is verified. Shorts: 3 min or less. | Image 5 MB; GIF 15 MB; video 20 min / 8 GB (Premium: 125 min / 16 GB). | Reels: 9:16, min 540x960, 24–60 fps, **3–90 s**. File size UNVERIFIED. | MP4, 5–300 s, up to 1 GB; images on Stories. |
+| **API caption limits** | Video caption 2,200. Photo title 90, description 4,000. | 2,200 chars, 30 hashtags, 20 @ tags. | Title 100 chars (no `<` or `>`). Description 5,000 bytes. | 280 weighted chars (URL = 23; emoji/CJK = 2). Premium: 25,000. | About 63,206 (UNVERIFIED). | Spotlight description 160. Caption 1–250, no emoji. |
+| **Rate limits / caps** (moot) | ~15 posts/day per creator; 5 pending drafts/24 h. | 50 posts/24 h (docs also say 100). | 100 uploads/day per project. | 100/15 min per user. | Reels 30 per Page per 24 h. | UNVERIFIED. |
+| **Token lifetimes / OAuth** (moot) | Access 2 h; refresh 180 d, rotates. | Long-lived 60 d; no PKCE. | Refresh 7 days in Testing. | Access 2 h; refresh rotates. | Long-lived about 60 d. | Access 1 h. |
+| **Approval UX demands** (moot) | Required post screen (privacy dropdown, no default, etc.). | Screencast per permission. | Show YouTube ToS; delete within 30 days of revoke. | Consent per user. | Same as Instagram, plus data-deletion callback. | Describe use to Snap contact. |
+
+### Table 3: limits xpost validates against
+
+The user still uploads to each platform (by hand or assisted), so limits matter. Where the research found **web-upload** limits, xpost uses them. Where only API limits were researched, they are labelled **"API limits; web upload limits may differ (UNVERIFIED)"** and are kept in remote config so they can be corrected without a release. Validation **warns**; it does not block (the platform has the final word).
+
+| Platform | Media | Caption | Source label |
+|---|---|---|---|
+| **TikTok** | **Web upload:** MP4/WebM, 720x1280 or higher, up to 30 min (Creator Academy says 60; conflict, UNVERIFIED), under 10 GB. Photos: API limits (JPEG/WebP, 20 MB, up to 35). | 2,200 | Video: web (support.tiktok.com). Photos and caption: **API limits; web upload limits may differ (UNVERIFIED)**. |
+| **Instagram** | Image JPEG 8 MB, 4:5 to 1.91:1. Reel 3 s–15 min, 300 MB. Carousel up to 20. Story video 3–60 s. | 2,200 chars, 30 hashtags, 20 @ tags | **API limits; web upload limits may differ (UNVERIFIED).** |
+| **YouTube** | 15 min unless the channel is verified (help 71673). Up to 15 files per batch in Studio. Max 256 GB (API page). Shorts 3 min or less. | Title 100 (no `<` `>`); description 5,000 bytes | Duration and batch: web (YouTube Help). Size and text: **API limits; web upload limits may differ (UNVERIFIED).** |
+| **X** | Image 5 MB; GIF 15 MB; video 20 min / 8 GB (Premium 125 min / 16 GB). Up to 4 images or 1 video. | 280 weighted (Premium 25,000). Intent text over 280 needs editing by the user [LIVE]. | Media: **API limits; web upload limits may differ (UNVERIFIED)** (docs say limits follow the user's subscription, not the API plan). Text: platform rule. |
+| **Facebook** | Reels 9:16, min 540x960, 3–90 s. File size UNVERIFIED. | About 63,206 (UNVERIFIED) | **API limits; web upload limits may differ (UNVERIFIED).** |
+| **Snapchat** | **Web uploader:** .mp4, 5–60 s, at least 540x960. Story and Spotlight need two uploads. | Spotlight description 160; caption 1–250 | Media: web (businesshelp). Text: **API limits; web upload limits may differ (UNVERIFIED).** |
 
 ---
 
@@ -165,29 +209,26 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 
 | Service | Key limits (Workers Paid) | What it means for xpost |
 |---|---|---|
-| **Inbound request body** | Set by the zone plan: Free/Pro 100 MB, Business 200 MB. | **Never send video through a Worker.** Browsers upload straight to R2. |
-| **Worker memory** | 128 MB per isolate (shared). | Stream everything. Never buffer a whole video. |
-| **Worker CPU** | 30 s default, up to 5 min per request. I/O wait is not CPU. | Streaming R2 → platform costs little CPU. |
-| **Worker wall time** | HTTP: unlimited while connected; `waitUntil` +30 s. Cron: 15 min. Queue consumer: 15 min. | Long work goes in Workflows. |
-| **Subrequests** | 10,000 default (configurable). | Enough for chunked uploads. |
-| **Outbound body** | 100 MiB per request is documented for Durable Objects and Containers. Not documented for Workers/Workflows (UNVERIFIED). | **Use chunks of 100 MiB or less everywhere.** |
-| **Workflows** | Step CPU 30 s–5 min; step wall time unlimited; 10,000 steps per instance; step result 1 MiB; `sleepUntil` up to 365 days; 50,000 concurrent running (sleeping ones don't count); create 100/s per Workflow; custom IDs dedupe; retained 7–30 days. | One instance per target. ID-based dedupe. Durable retries and polling. |
-| **Workflows pricing** | 500,000 steps/month included, then $0.80 per 100k. 1 GB-month storage included. | $0 at MVP scale. |
-| **R2 multipart** | Parts 5 MiB–5 GiB, up to 10,000 parts, all parts except the last the same size. Incomplete uploads aborted after 7 days. Presigned URLs: 1 s–7 days, **S3 endpoint only (not custom domains)**, no POST forms. CORS must expose `ETag`. | Worker signs one presigned PUT per part. Fixed part size (10 MiB proposed). |
-| **R2 pricing** | $0.015/GB-month; Class A $4.50/M; Class B $0.36/M; **egress free**. Free tier: 10 GB-month, 1M A, 10M B. Lifecycle rules by prefix. | Cheap. Lifecycle rule as a backstop for deletion. |
-| **D1** | 10 GB per database; 1,000 queries per invocation; 30 s per query; 2 MB per row; 100 bound params; 30-day Time Travel. Paid: 25B reads and 50M writes per month included. | One database is fine. Tokens fit easily. |
-| **Queues** | 128 KB messages; 5,000 msg/s; up to 100 retries; DLQ; delay up to 24 h; $0.40/M ops. | Not needed for scheduling (section D). |
-| **Cron** | UTC; finest is every minute; changes take **up to 15 min** to propagate and runs can be missed. | The sweep looks back for overdue rows. |
-| **Durable Objects** | One single-threaded object per key; 100 MiB outbound body. | Per-account lock and token bucket. |
-| **Rate Limiting binding** | 10 s or 60 s periods, per location, **approximate**. | Coarse abuse protection only. Use a DO or D1 counter where precision matters. |
-| **Email Service (Beta)** | Workers Paid; 3,000/month included, then $0.35 per 1,000. Needs an onboarded sending domain. | Optional email codes and reminders. **Needs the domain.** |
+| **Inbound request body** | Set by the zone plan: Free/Pro 100 MB, Business 200 MB. | **Never send video through a Worker.** Browsers and desktop upload straight to R2. |
+| **Worker memory** | 128 MB per isolate (shared). | No media passes through the Worker, so this is not a concern. |
+| **Worker CPU** | 30 s default, up to 5 min per request. Free plan: 10 ms. | Web push payload encryption and licence crypto fit easily on Paid. |
+| **Worker wall time** | Cron: 15 min. | The minute sweep finishes in well under a second at MVP scale (Assumption). |
+| **R2 multipart** | Parts 5 MiB–5 GiB, up to 10,000 parts, all parts except the last the same size. Incomplete uploads aborted after 7 days. Presigned URLs: 1 s–7 days, **S3 endpoint only (not custom domains)**, no POST forms. CORS must expose `ETag`. | Worker signs one presigned PUT per part. Fixed part size (10 MiB proposed). Handed-over file downloads use short-lived presigned GET URLs. |
+| **R2 pricing** | $0.015/GB-month; Class A $4.50/M; Class B $0.36/M; **egress free**. Free tier: 10 GB-month, 1M A, 10M B. Lifecycle rules by prefix. | Cheap. Lifecycle rule as a backstop for retention. |
+| **D1** | 10 GB per database; 1,000 queries per invocation; 30 s per query; 2 MB per row; 100 bound params; 30-day Time Travel. Paid: 25B reads and 50M writes per month included. | One database is plenty. |
+| **Cron** | UTC; finest is every minute; changes take **up to 15 min** to propagate and runs can be missed. | The sweep looks back for overdue reminders. |
+| **Rate Limiting binding** | 10 s or 60 s periods, per location, **approximate**. | Coarse abuse protection only. Use a D1 counter where precision matters. |
+| **Email Service (Beta)** | Workers Paid; 3,000/month included, then $0.35 per 1,000. Needs an onboarded sending domain. | Optional email codes and reminders. **Needs the domain.** Costs money beyond the free tier, so it needs your approval (I-4, I-13). |
+| **Workflows** | Durable multi-step jobs; step billing since 2026-08-10. | **Not used.** They existed to run long API uploads with retries. With no APIs, there is no long-running job. A reminder is one D1 update plus a few push sends. |
+| **Queues** | 128 KB messages; $0.40/M ops. | **Not used.** The sweep sends at most a few reminders per minute at MVP scale; no fan-out buffer is needed. Revisit only if a sweep cannot finish within the cron wall time. |
+| **Durable Objects** | One single-threaded object per key. | **Not used.** They were for per-account token-refresh locks and API rate buckets. No tokens, no API calls. |
 
 ### Hosting recommendation
 - **Use Workers with Static Assets, not Pages.** Cloudflare says: "Start new projects with Workers" (https://developers.cloudflare.com/pages/).
 - One Worker serves the React SPA (`not_found_handling: "single-page-application"`) and the API. Static asset requests are free.
-- The same Worker holds the cron handler, the Workflow classes and the Durable Object.
-- Deploy with GitHub Actions (`wrangler deploy`). Use `xpost.<account>.workers.dev` for M1–M4. The domain is one config value (`APP_ORIGIN`).
-- **Workers Paid ($5/month) is required.** The Free plan's 10 ms CPU and 3,000 Workflow steps a day do not work for the sweep.
+- The same Worker holds the cron handlers (reminder sweep, licence re-validation, retention cleanup).
+- Deploy with GitHub Actions (`wrangler deploy`). Use `xpost.<account>.workers.dev` for development. The domain is one config value (`APP_ORIGIN`).
+- **Workers Paid ($5/month): keep it from M1.** The reason has changed: Workflows are gone. It is still needed because the Free plan's 10 ms CPU per request is tight for web push encryption and licence crypto, and Email Service requires Paid.
 
 ---
 
@@ -197,21 +238,22 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 
 ```
  Phone / browser (React SPA)          Desktop (Electron, same React UI)
-   |  HTTPS + httpOnly cookie            |  HTTPS + device token (Ed25519 licence token offline)
-   |                                     |  local SQLite cache: drafts readable offline
+   |  HTTPS + httpOnly cookie            |  HTTPS + device licence token (Ed25519, verified offline)
+   |  Web Push (service worker)          |  local SQLite: drafts + reminders readable offline
+   |                                     |  local OS notifications; assisted-fill windows
+   |                                     |  (platform sessions stay on this device only)
    v                                     v
  +-------------------------- Cloudflare Worker "xpost" ---------------------------+
- |  Static assets (SPA)   API router   OAuth callbacks   LS webhook   Media route |
- |  Cron: * * * * * sweep;  daily: licence re-validate, token refresh, cleanup     |
- |  Workflow: PublishTarget (one instance per target)                             |
- |  Durable Object: AccountGate (per social account: refresh lock + rate bucket)  |
+ |  Static assets (SPA)   API router   LS webhook   R2 upload/download signing     |
+ |  Cron: * * * * * reminder sweep;  daily: licence re-validate, retention cleanup |
+ |  Remote config + signed feed (kill switches, selector config for assisted fill)|
  +-----+--------------+--------------+---------------+--------------+------------+
        |              |              |               |              |
-      D1             R2             KV          Email Service   Web Push
+      D1             R2             KV          Email Service   Web Push services
  (source of truth) (media, exports) (config cache)  (optional)    (browser notifications)
        |
-       +--> Platform APIs: TikTok, Instagram/Facebook (Graph), YouTube, X, Snapchat
        +--> Lemon Squeezy License API + main API
+   (No platform APIs. Platforms are reached only by the user's own browser or the desktop's in-app window.)
 ```
 
 ### Request flows
@@ -219,131 +261,88 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 **Sign-in (web)**
 1. The user enters their purchase email and licence key.
 2. The Worker rate-limits the request: the CF binding for coarse limits, plus a D1 counter per email and per key for strict limits.
-3. The Worker calls LS `validate`. It checks status, store, product and variant (forked XLISTit code). It checks the email against the licence's order. Which LS field exposes the email is UNVERIFIED; settle it in M2.
-4. **If email codes are on** (recommended, needs the domain): the Worker emails a 6-digit code via Email Service. The user enters it.
+3. The Worker calls LS `validate`. It checks status, store, product and variant (forked XLISTit code). It checks the email against the licence's order. Which LS field exposes the email is UNVERIFIED; settle it in M1.
+4. **If email codes are on** (recommended; needs the domain and Email Service): the Worker emails a 6-digit code. The user enters it.
 5. The Worker creates a `web_sessions` row and sets an httpOnly, Secure, SameSite=Lax cookie holding a random ID. Only the ID's hash is stored.
 6. If the licence is over its web-session limit, the oldest session is revoked, or the user picks one to sign out.
 7. All unsafe methods need a CSRF token (double-submit) plus an Origin check.
 
 **Desktop activation**
-- Same as XLISTit: LS `activate` with a fingerprint in the instance name. The Worker returns an Ed25519 token with xpost prefixes and an xpost key.
+- Same as XLISTit: LS `activate` with a fingerprint in the instance name. The Worker returns an Ed25519 licence token with xpost prefixes and an xpost key.
 - Devices count against the LS activation limit. Settings, Devices lets the user deactivate.
-- Offline grace is 7 days, as in XLISTit. Drafts stay readable offline.
+- Offline grace is 7 days, as in XLISTit. Drafts and reminders stay readable offline.
 
-**Connect a social account**
-1. The client opens `GET /connect/:platform`. On desktop, this opens in the **system browser** and carries a one-time link code.
-2. The Worker stores `oauth_states` (state, PKCE verifier encrypted, customer, expiry 10 min) and redirects to the platform.
-3. The callback lands on an exact registered HTTPS URL on the Worker. The Worker exchanges the code server-side with the client secret from Worker secrets, and adds PKCE where supported.
-4. Tokens are AES-GCM encrypted and stored in `social_accounts`. **Tokens never go to any client.**
+**Platforms & modes (replaces "connect a social account")**
+- There is nothing to connect. The user picks which platforms they use and, optionally, an account label per platform (free text, e.g. "@mybrand").
+- On desktop, each platform shows its mode and an **assisted fill opt-in** (with the risk warning). The opt-in is stored on the device.
 
 **Upload**
-1. The client asks `POST /media` with size, type and file name. The Worker creates an R2 multipart upload under an unguessable key: `m/<customerId>/<random 128-bit>`.
-2. The client requests presigned PUT URLs for batches of parts, then PUTs 10 MiB parts straight to R2. It keeps the ETags so it can resume.
+1. The client asks `POST /media` with size, type and file name. The Worker creates an R2 multipart upload under an unguessable key: `m/<userId>/<random 128-bit>`.
+2. The client requests presigned PUT URLs for batches of parts, then PUTs 10 MiB parts straight to R2. It keeps the ETags so it can resume. **Never proxied through the Worker.**
 3. `POST /media/:id/complete` sends the ETags and the Worker completes the upload.
-4. The client probes the file in the browser (duration, size, dimensions, codec where readable). The Worker stores the probe.
-5. Validation runs against every selected platform's rules. Problems show as plain-English fixes, such as "Instagram Reels must be 15 minutes or shorter. Trim it or untick Instagram." **xpost never changes media without consent.**
+4. The client probes the file (duration, size, dimensions, codec where readable). The Worker stores the probe.
+5. Validation runs against every selected platform's rules (Table 3). Problems show as plain-English fixes, such as "Snapchat's web uploader takes videos of 60 seconds or less. Trim it or untick Snapchat." **xpost never changes media without consent.**
+6. On desktop, the original local file path is also remembered, so handoff and assisted fill can use it without downloading.
 
 **Schedule (and "post now")**
-1. Saving writes `posts` and `targets` rows: UTC time plus the user's IANA timezone, status `queued` (automatic) or `waiting_for_you` (manual), and `schedule_version += 1`.
-2. "Post now" calls `PUBLISH_WORKFLOW.create({id: "t-<targetId>-v<version>"})` straight away.
-3. Editing or cancelling only updates D1 and bumps `schedule_version`. Any old instance will see it is stale and exit.
+1. Saving writes `posts` and `post_targets` rows: UTC time plus the user's IANA timezone, status `scheduled`, and `schedule_version += 1`. One `reminders` row is written per target per channel.
+2. "Post now" skips the reminder: it runs the one-click action straight away.
+3. Editing or cancelling updates D1, bumps `schedule_version`, and replaces or cancels pending reminders.
 
-**Publish (engine)**
-1. The cron runs every minute. It selects `queued` targets due in the next 2 minutes, plus overdue ones (look-back). It calls `createBatch` with ID `t-<targetId>-v<version>`. Errors `10405` and `10415` mean the instance already exists, which is fine.
-2. Instance step `sleepUntil(scheduledAt)`.
-3. Step `recheck`: re-read D1. Exit if the post was cancelled, the version changed, the licence is blocked, or the platform kill switch is on.
-4. Step `claim`: a conditional UPDATE to `uploading`. Zero rows changed means exit.
-5. Step `token`: refresh through the AccountGate DO if the token is near expiry.
-6. Step `quota`: check the platform's caps (section D, rate limits). If a cap is hit, wait in a sleep step or fall back to manual with a reminder.
-7. Steps `transfer-<n>`: chunked transfer (section D, media transfer).
-8. Step `publish`: see Idempotency.
-9. Steps `poll-<n>`: poll the status with `step.sleep` between polls until confirmed. Then store the post ID, URL and visibility, and set status `published`.
+**Reminder scheduler (the engine)**
+1. The cron runs every minute. It selects `reminders` with `status='pending' AND due_at <= now`, including overdue ones (look-back, because cron runs can be missed).
+2. **Claim:** a conditional `UPDATE … SET status='sending' WHERE id=? AND status='pending'`. Zero rows changed means another run has it.
+3. Skip and close the reminder if the target was cancelled, the version changed, or the licence is blocked (`paused_licence`).
+4. **Send:**
+   - Web push (VAPID) to each of the user's subscriptions. A 404/410 from the push service deletes that subscription.
+   - Desktop: the app syncs upcoming reminders into local SQLite and fires a local OS notification at `due_at`, even offline. It dedupes by reminder ID.
+   - Email (optional, if the user turned it on and you approved Email Service).
+5. Set the target to `waiting_for_you`. Set the reminder to `sent`, or back to `pending` with a backoff on a transient error. After a set number of failures (Assumption: 5), mark it `failed`; it shows in the app and triggers an alert (M9).
+6. Every reminder deep-links to the target's one-click action. The in-app **"Ready to post"** list always shows due targets, so a missed notification never loses a post.
 
-**Manual handoff**
-1. When the target is due, its status shows "Waiting for you" and a reminder fires.
-2. **One-click action:**
-   - Desktop browser: copy the caption, download or reveal the file, and open the platform's upload page in a new tab.
-   - Phone: `navigator.share({files, text})` opens the OS share sheet. The caption is copied first, because the share sheet may drop it.
-3. Status becomes `handed_off`. **It is never marked posted on a guess.** The user pastes the post link (validated per platform) or presses "I posted it", which sets `confirmed_posted`.
-4. **Intent variants:** X `x.com/intent/tweet`, the FB Share Dialog, and the Snap share link open prefilled. They follow the same status rules.
+**One-click action (per target, by mode)**
+- **Intent / share** (web or desktop): open the prefilled URL (X intent, Facebook sharer, Snap share link) in the user's normal browser.
+- **Handoff:**
+  - Desktop browser: copy the caption, download the file (short-lived presigned R2 GET), and open the platform's upload page in a new tab.
+  - Desktop app: copy the caption, reveal the file in Finder/Explorer (local copy, or downloaded first), and open the upload page in the user's default browser.
+  - Phone: `navigator.share({files, text})` opens the OS share sheet. The caption is copied first, because the share sheet may drop it.
+  - X with media: the handoff opens the X intent URL (caption prefilled) instead of the bare composer, and still hands over the file.
+- **Assisted fill** (desktop only): see section E.
 
-**Scheduled TikTok draft**
-- This runs through the engine, because it is an API call. Its final status is `draft_sent`, not `published`.
-- Then a reminder says "Open TikTok and press Post". The user confirms or pastes the link.
+**Statuses (never marked published on a guess)**
+- `scheduled` → `waiting_for_you` (due) → `handed_off` (one-click action used) → `confirmed_posted`.
+- `confirmed_posted` needs either the user pressing "I posted it" (optionally pasting the post link, validated per platform), or assisted fill capturing the live post URL when the site navigates to it (as XLISTit does).
+- Other states: `skipped`, `cancelled`, `paused_licence`.
 
-**Reminders**
-- When a manual target falls due, the engine writes a `reminders` row.
-- Web: Web Push to subscribed browsers. Desktop: OS notification. Email is optional (Email Service).
-- Each reminder carries a deep link to the target's one-click action.
-- iOS web push may need the app installed to the home screen. This was not covered in the research; check in M3.
-
-**Licence webhook and re-validation**
+**Licence webhook and re-validation** (unchanged)
 1. `POST /webhooks/lemonsqueezy`: verify the HMAC (constant time) over the raw body. **Require** the store ID to match.
 2. Write `webhook_events` (unique event key) so each event is handled once.
 3. On refund, cancellation or expiry, update `licences.status`.
 4. A daily cron re-validates active licences with LS. A blocked licence:
    - blocks new posts
-   - sets future targets to `paused_licence`
+   - sets future targets to `paused_licence` and stops their reminders
    - shows a banner
    - sends one notification
 
-### Engine choice: your cron → queue → workflow vs the research's cron → workflow
+### Why no Queue or Workflow
+- The earlier plan compared "cron → Queue → Workflow" with "cron → Workflow". Both existed to run API uploads with durable retries. **That work is gone.**
+- A reminder is: one conditional D1 update, a few push requests, one more D1 update. It fits in the cron handler.
+- Safety comes from the conditional claim and from statuses only moving forward on user action.
+- A duplicate notification (worst case) is harmless: the action is still a person pressing Post.
 
-| | Option A: cron → Queue → Workflow (yours) | **Option C: D1 + cron sweep → Workflow (recommended)** |
-|---|---|---|
-| Duplicate safety | Needs its own dedup | Workflow ID `targetId-vN` dedupes for free |
-| Retries and failure state | Queue retries plus a DLQ, **and** Workflow retries | Workflow retries and durable state only |
-| Rescheduling | D1 update | D1 update (the instance re-checks) |
-| Moving parts | 3 | 2 |
-| Scale ceiling | Higher fan-out buffer | 100 creations/s per Workflow = 6,000 targets per sweep minute |
-| Cost | Plus about $0.40 per million ops | none extra |
+### Quotas
+- No platform caps or spend caps are needed: nothing calls a platform.
+- Licence-based limits stay only where they still protect something:
+  - **web sessions and desktop devices** (licence sharing)
+  - **storage** (R2 GB held and media retention days)
+  - **email reminders per month** (Email Service costs money beyond 3,000/month)
+  - optional cap on scheduled reminders per month, as abuse protection only (Assumption).
+- A monthly post quota is **not needed** for cost reasons any more. Use it only if you want plan tiers by volume.
 
-- **Recommendation: Option C.** Add a Queue later only if a sweep must start more than about 100 instances a second.
-- Pure "Workflow sleeps from schedule time" (Option B) was rejected. It keeps two copies of the schedule that can drift. Rescheduling means terminate and recreate. And long sleeps resume on whatever code is deployed then (UNVERIFIED how versioning interacts).
-
-### Idempotency (never post twice)
-| Step | How it stays safe |
-|---|---|
-| Start | Workflow ID `t-<targetId>-v<scheduleVersion>`. Duplicate creates fail with 10405. |
-| Recheck and claim | Conditional `UPDATE … WHERE status='queued' AND schedule_version=?`. Only one instance wins. |
-| Token refresh | TikTok and X refresh tokens **rotate**. Refresh runs inside the AccountGate DO (one at a time per account) and **saves the new token before returning**. |
-| Media transfer | Chunks are keyed by offset or segment: YouTube `Content-Range` (resume with `bytes */N`), X `segment_index`, TikTok chunk ranges, Meta `offset`. Re-sending a chunk is harmless. The upload session or container ID is saved to D1 **in the same step that creates it**, and reused on retry (IG containers last 24 h; Snap media 24 h). |
-| **Publish call (not idempotent)** | 1) Save `publish_attempted_at` to D1 **before** the call. 2) Make the call in a step with **retries: 0**. 3) On success, save the platform ID (publish_id, media ID, video ID, tweet ID) in the step result **and** in D1. 4) On an unclear failure (timeout, 5xx, dropped connection), **never call again blindly**. Go to reconcile. |
-| Reconcile | **TikTok:** fetch status by `publish_id`. **IG:** container `status_code` = PUBLISHED. **YouTube:** query the resumable session (it returns the video once complete). **FB:** check the video or Reel by its ID from the start phase. **X:** no idempotency key was found in the research, so mark `needs_check` and show "Check on X" (optionally one paid read at $0.005). **Snap:** `MEDIA_POSTING_ALREADY_IN_PROGRESS` signals a duplicate. If still unknown, set `needs_check` and ask the user. **Never auto-retry.** |
-| Poll | Read-only. Sleep between polls (IG: once a minute, up to 5 min). |
-| Retry button | "Retry" on a failed target bumps `schedule_version` and makes a new instance. It is **disabled while status is `needs_check`** until the user confirms the post did not appear. |
-
-### Rate limits, caps and backoff
-- **Backoff:** Workflow step retry delay is a function of the error. Honour `Retry-After` and `x-rate-limit-reset`. Errors like "invalid media" throw `NonRetryableError`.
-- **Per account:** the AccountGate DO keeps a token bucket. Example: TikTok 6 init calls/min.
-- **Daily caps** are kept in D1 `usage_counters`, checked before scheduling (a warning) and before publishing (enforced):
-  - TikTok about 15 Direct Posts/day per creator, and 5 pending drafts/24 h
-  - IG: read `content_publishing_limit` live, assume 50
-  - FB Reels 30 per Page per 24 h
-  - **YouTube 100 uploads/day for the whole project**, a global counter. When it runs out, targets switch to "You press Post" with a clear message.
-  - X 100/15 min per user, 10,000/24 h per app
-- **Per licence:** monthly post quota and **monthly X spend cap** (the `x_cost_ledger` table). Cost per post: $0.015, or $0.20 if the text contains a URL, as of 2026-04-20. Media-upload cost is UNVERIFIED; log it after the first test.
-
-### Media transfer per platform (API mode)
-| Platform | Method | Why |
-|---|---|---|
-| TikTok video | **FILE_UPLOAD**: Workflow streams R2 ranged reads in fixed 50 MiB chunks (`FixedLengthStream`) | No domain needed. The remainder goes in the final chunk, which TikTok allows up to 128 MB, so every chunk stays under our 100 MiB rule (my inference). |
-| TikTok photos | **PULL_FROM_URL** from the media route on a **verified domain** | Pull is the only option for photos. Needs the domain (M5). |
-| Instagram (IG Login) | **Pull** `video_url` / `image_url` from the media route | IG Login has no resumable upload. No domain verification is documented (UNVERIFIED). |
-| Instagram (FB Login for Business, if chosen) | Resumable push to `rupload.facebook.com` | Push avoids exposing a URL. |
-| YouTube | **Resumable upload**, chunks a multiple of 256 KB and no more than 100 MiB, streamed from R2 | There is no pull option. |
-| Facebook | Reels: `rupload` push in chunks. Page video: resumable handle. Photos: `url` pull from the media route. | Push where available. |
-| X | Chunked APPEND, 5 MB segments from R2 | Push only. |
-| Snapchat | Encrypt AES-256-CBC, upload parts of 32 MB or less | Push only. Streaming CBC in Workers needs a spike: Web Crypto pads each call, so chaining across chunks may need a hand-written CBC (my inference). |
-
-**Media route:** `https://media.<domain>/m/<token>/<name>`
-- `token` = HMAC(mediaId, targetId, expiry).
-- The Worker streams from the R2 binding and supports Range requests. It sends **no redirects**.
-- Expiry: TikTok at least 1 h plus margin (2 h proposed); Meta 30 min.
-- On a verified domain this meets TikTok's rules. Presigned R2 URLs cannot, because they only work on `*.r2.cloudflarestorage.com`, which you cannot verify.
-- Whether TikTok accepts a token inside a verified prefix: path tokens are proposed because query-string handling is UNVERIFIED.
-
-**Retention:** `MEDIA_RETENTION_DAYS` config (7 proposed). The file is deleted when all its targets are final **and** the window has passed. The R2 lifecycle rule (retention + 7 days) is a backstop.
+### Retention
+- `MEDIA_RETENTION_DAYS` config (7 proposed). A file is deleted when all its targets are final (`confirmed_posted`, `skipped`, `cancelled`) **and** the window has passed, or when the window plus a grace period passes regardless.
+- The R2 lifecycle rule (retention + 7 days) is a backstop.
+- Handed-over file downloads use presigned GET URLs that expire in minutes (Assumption: 15 min).
 
 ### D1 data model (key columns)
 
@@ -352,195 +351,186 @@ All times are stored as UTC epoch milliseconds. IDs are random (ULID or 128-bit)
 | Table | Key columns | Indexes / notes |
 |---|---|---|
 | `licences` | id, ls_key_hash, ls_key_id, ls_order_id, product_id, variant_id, plan, **status** (`active`, `expired`, `disabled`, `refunded`, `cancelled`), expires_at, last_validated_at | unique(ls_key_hash) |
-| `customers` | id, licence_id, email, created_at, deleted_at | unique(email) |
-| `plan_limits` | plan, monthly_posts, monthly_x_spend_cents, max_social_accounts, max_web_sessions, max_devices, email_reminders | Editable without a release |
-| `web_sessions` | id_hash, customer_id, created_at, last_seen_at, expires_at, label, revoked_at | idx(customer_id, revoked_at) |
+| `users` | id, licence_id, email, timezone, created_at, deleted_at | unique(email) |
+| `plan_limits` | plan, max_web_sessions, max_devices, storage_gb, media_retention_days, email_reminders_monthly, scheduled_reminders_monthly (optional) | Editable without a release |
+| `web_sessions` | id_hash, user_id, created_at, last_seen_at, expires_at, label, revoked_at | idx(user_id, revoked_at) |
 | `login_codes` | id, email_hash, code_hash, expires_at, attempts | Delete after use |
 | `auth_counters` | key (email/key/IP hash), window_start, count | Strict sign-in limits |
-| `devices` | id, customer_id, ls_instance_id, fingerprint_hash, label, activated_at, last_seen_at, deactivated_at | |
-| `social_accounts` | id, customer_id, platform, platform_user_id, display_name, avatar_url, account_kind (IG business/creator, FB page…), **status** (`connected`, `expiring`, `needs_reauth`, `disconnected`), scopes, token_ct, refresh_ct, iv, **key_version**, access_expires_at, refresh_expires_at, last_refresh_at | unique(customer_id, platform, platform_user_id); idx(status, access_expires_at) |
-| `oauth_states` | state, customer_id, platform, pkce_verifier_ct, client_kind (web/desktop), link_code, expires_at | TTL 10 min |
-| `media` | id, customer_id, r2_key, size, mime, duration_ms, width, height, fps, vcodec, acodec, **status** (`uploading`, `ready`, `deleted`), multipart_upload_id, delete_after | idx(status, delete_after) |
-| `posts` | id, customer_id, title, master_caption, master_fields_json, **status** (`draft`, `scheduled`, `in_progress`, `done`, `partial`, `failed`, `cancelled`), scheduled_at, timezone, created_at, updated_at, deleted_at | idx(customer_id, status, scheduled_at) |
+| `devices` | id, user_id, ls_instance_id, fingerprint_hash, label, activated_at, last_seen_at, deactivated_at | |
+| `media` | id, user_id, r2_key, size, mime, duration_ms, width, height, fps, vcodec, acodec, **status** (`uploading`, `ready`, `deleted`), multipart_upload_id, delete_after | idx(status, delete_after) |
+| `posts` | id, user_id, title, master_caption, master_fields_json, **status** (`draft`, `scheduled`, `active`, `done`, `cancelled`), scheduled_at, timezone, created_at, updated_at, deleted_at | idx(user_id, status, scheduled_at). Drafts are `status='draft'`. |
 | `post_media` | post_id, media_id, position | pk(post_id, position) |
-| `targets` | id, post_id, social_account_id, platform, **mode** (`api`, `draft`, `intent`, `handoff`), override_json (caption, title, privacy, toggles…), **status**, schedule_version, scheduled_at, workflow_id, platform_ref (publish_id / container / session / video ID), publish_attempted_at, platform_post_id, post_url, **visibility** (`public`, `private`, `unlisted`, `self_only`, `friends`, `unknown`), confirmed_by (`api`, `user_link`, `user_confirm`), attempts, last_error_code, last_error_text, published_at | idx(status, scheduled_at) for the sweep; idx(post_id); idx(social_account_id, status); unique(post_id, social_account_id) |
-| `target_events` | id, target_id, at, from_status, to_status, code | History and audit |
-| `reminders` | id, target_id, channel (`push`, `desktop`, `email`), due_at, sent_at, status | idx(status, due_at) |
-| `push_subscriptions` | id, customer_id, endpoint, keys_ct, created_at | |
-| `usage_counters` | scope (`account`, `project`, `licence`), scope_id, platform, window_start, count | pk(scope, scope_id, platform, window_start) |
-| `x_cost_ledger` | id, licence_id, target_id, kind (`post`, `post_url`, `read`, `media`), micro_usd, at | idx(licence_id, at) |
-| `platform_status` | platform, mode, available, **approval** (`not_applied`, `pending`, `approved`, `rejected`), default_mode, **kill_switch**, message, updated_at | Remote config |
-| `remote_config` | key, value_json, updated_at | e.g. min desktop version, global kill |
+| `post_targets` | id, post_id, platform, account_label, **mode** (`assisted`, `intent`, `handoff`), override_json (caption, title, hashtags…), **status** (`scheduled`, `waiting_for_you`, `handed_off`, `confirmed_posted`, `skipped`, `cancelled`, `paused_licence`), schedule_version, scheduled_at, handed_off_at, confirmed_at, confirmed_url, confirmed_by (`user_confirm`, `user_link`, `assisted_capture`) | idx(post_id); idx(status, scheduled_at) |
+| `target_events` | id, target_id, at, from_status, to_status, code | Status history |
+| `reminders` | id, target_id, user_id, channel (`push`, `desktop`, `email`), due_at, **status** (`pending`, `sending`, `sent`, `failed`, `cancelled`), attempts, sent_at, last_error_code | idx(status, due_at) for the sweep |
+| `push_subscriptions` | id, user_id, endpoint, keys_json, created_at | Public browser keys only; delete on 404/410 |
+| `remote_config` | key, value_json, updated_at | Global: min desktop version, pause reminders. Per platform (`platform:<id>`): default mode for web and desktop, intent on/off, **assisted kill switch**, **selector config version**, message, limits overrides |
 | `webhook_events` | event_key, type, received_at, processed_at | unique(event_key) |
-| `data_exports` | id, customer_id, status, r2_key, expires_at | |
+| `audit_log` | id, user_id, at, kind (sign-in, session revoked, device deactivated, export, delete), ip_hash | Security events only; no captions |
+| `data_exports` | id, user_id, status, r2_key, expires_at | |
 
-**Target status enums**
-- **Automatic:** `queued`, `uploading`, `processing`, `published`, `failed`, `needs_check`, `cancelled`, `paused_licence`
-- **Manual:** `waiting_for_you`, `draft_sent` (TikTok), `handed_off`, `confirmed_posted`, `skipped`
+**Removed vs the earlier draft:** `social_accounts`, `oauth_states`, platform token columns, `usage_counters`, `x_cost_ledger`, `platform_status` approval fields, Workflow IDs and publish/reconcile columns.
 
 **UI mode labels** shown on every target:
-- "Automatic" (API)
-- "Draft in TikTok" (TikTok inbox draft)
 - "You press Post" (intent and handoff)
+- "Assisted — you press Post" (assisted fill)
 
 **Feature coverage**
 - **Drafts:** `posts.status='draft'`. Autosave is a PATCH with an `updated_at` check. Duplicate copies the post and its targets.
-- **Filters:** by status, platform, account and date, using the indexes above.
+- **Filters:** by status, platform, mode and date, using the indexes above.
 - **Export:** a JSON + CSV zip to R2, delivered as a short-lived link.
-- **Delete data:** revoke platform tokens where an API exists, delete rows and R2 objects, and keep only the licence record LS needs. This also meets YouTube's "delete within 30 days of revoke".
-- **Disconnect** revokes and deletes tokens.
+- **Delete data:** delete rows and R2 objects, and keep only the licence record LS needs. The desktop also offers "Sign out of all platforms on this device", which clears the assisted-fill partitions.
 
 ### Config, remote config and kill switches
-- **Static config** (Worker vars): `APP_ORIGIN`, `MEDIA_ORIGIN`, `MEDIA_RETENTION_DAYS`, LS IDs. **Secrets:** platform client secrets, `TOKEN_KEY_V1…`, LS API key, webhook secret, licence signing key, config-feed signing key, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (for presigned part URLs), `VAPID_PRIVATE_KEY` (web push).
-- **Remote config:** the `platform_status` and `remote_config` tables in D1, cached about 60 s in Worker memory or KV. You change modes and defaults **without a release**.
+- **Static config** (Worker vars): `APP_ORIGIN`, `MEDIA_RETENTION_DAYS`, LS IDs. **Secrets:** LS API key, webhook secret, licence signing key, config-feed signing key, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (presigned URLs), `VAPID_PRIVATE_KEY` (web push).
+- **Remote config:** the `remote_config` table in D1, cached about 60 s in Worker memory or KV. You change default modes, limits and messages **without a release**.
 - **Kill switches:**
-  - global "pause all automatic posting"
-  - per platform
-  - per platform + mode
+  - per platform: assisted fill off (desktop falls back to intent or handoff)
+  - per platform: intent off (if a platform changes its intent URL)
+  - global: pause reminders
   - minimum desktop version
-- A switched-off target becomes "You press Post" with a message. It is never silently dropped.
-- **Desktop** gets the same config as a signed feed (Ed25519, its own key), as XLISTit does.
+- Handoff cannot be switched off; it is the fallback for everything.
+- A switched-off mode falls back with a plain-English message. Nothing is silently dropped.
+- **Desktop** gets the same config, plus the assisted-fill **selector config**, as a signed versioned feed (Ed25519, its own key), as XLISTit does.
 
 ### Security checklist
-- **Token encryption:** AES-GCM with a fresh IV per write. Keys live in Worker secrets with a `key_version` column, and a re-encrypt job runs on rotation.
-- **OAuth:** `state` on every flow. PKCE where supported (YouTube, X, FB). **Server-side secret exchange for TikTok, IG Login and Snapchat.** Desktop uses the same Worker web flow in the system browser. Exact redirect URLs.
-- **Web:** httpOnly + Secure cookies, CSRF token + Origin check, and an ownership check (`customer_id`) on every query.
-- **Media:** unguessable R2 keys, short-lived presigned and media-route URLs, and CORS limited to `APP_ORIGIN`.
-- **Rate limits:** on sign-in, codes and licence checks. The CF binding is coarse; D1/DO counters handle strict limits.
-- **Logs:** platform, endpoint, status and error code only. No tokens, captions or emails. Reuse XLISTit's scrubber.
+- **Web:** httpOnly + Secure cookies, CSRF token + Origin check, and an ownership check (`user_id`) on every query.
+- **Media:** unguessable R2 keys, short-lived presigned upload and download URLs, and CORS limited to `APP_ORIGIN`.
+- **Rate limits:** on sign-in, codes and licence checks. The CF binding is coarse; D1 counters handle strict limits.
+- **Logs:** route, status and error code only. **No licence keys, captions or emails.** Reuse XLISTit's scrubber.
 - **Repo:** no secrets. Copy XLISTit's `no-secrets` test.
-- **Desktop:** `enableCookieEncryption` fuse on. Separate code-signing and licence keys from XLISTit. All OAuth runs in the system browser. The desktop never holds platform tokens.
+- **No platform credentials anywhere on the server.** No social passwords, cookies or tokens are ever sent to or stored by xpost's backend.
+- **Desktop:** `enableCookieEncryption` fuse on. Assisted-fill sessions live in per-platform persistent partitions **on the device only**. Selector feed signature checked before use. Separate code-signing and licence keys from XLISTit.
 
 ### Adapter interface (sketch)
 
+Each platform is **config plus manual actions**. There is no connect, refresh, publish or status polling.
+
 ```ts
 export type Platform = 'tiktok' | 'instagram' | 'youtube' | 'x' | 'facebook' | 'snapchat' | 'fake';
-export type Mode = 'api' | 'draft' | 'intent' | 'handoff';           // 'assisted' intentionally absent
-// Rule: modes.draft.supported is true only for TikTok (the only manual mode allowed on a schedule).
-export type Approval = 'not_applied' | 'pending' | 'approved' | 'rejected' | 'not_needed';
-
-export interface AdapterConfig {
-  platform: Platform;
-  modes: Record<Mode, { supported: boolean; needsApproval: Approval; label: string }>;
-  defaultMode: Mode;                       // overridable by remote config
-  content: { video: boolean; image: boolean; carousel?: number; text: boolean; link: boolean; story?: boolean };
-  limits: MediaRules & CaptionRules & { dailyPerAccount?: number; dailyPerProject?: number; perMinute?: number };
-  transfer: 'push_chunked' | 'pull_url' | 'either';
-  maxChunkBytes: number;                   // always <= 100 MiB
-  oauth: { pkce: boolean; scopes: string[]; refreshRotates: boolean };
-  uploadPageUrl: string;                   // handoff target
-}
+export type Mode = 'assisted' | 'intent' | 'handoff';
+export type ClientKind = 'web' | 'phone' | 'desktop';
 
 export interface PlatformAdapter {
-  readonly config: AdapterConfig;
+  readonly platform: Platform;
+  readonly label: string;
+  readonly content: { video: boolean; image: boolean; carousel?: number; text: boolean; link: boolean; story?: boolean };
+  readonly limits: MediaRules & CaptionRules;        // Table 3; remote config may override
+  readonly limitsSource: 'web' | 'api_unverified_for_web';
 
-  connect: {
-    authorizeUrl(ctx: Ctx, a: { state: string; codeChallenge?: string; redirectUri: string }): URL;
-    exchange(ctx: Ctx, a: { code: string; codeVerifier?: string; redirectUri: string }): Promise<ConnectedAccount>;
-  };
-  refreshToken(ctx: Ctx, acct: AccountSecrets): Promise<TokenSet>;          // caller persists before use
-  validate(target: TargetDraft, media: MediaProbe[], acct: AccountInfo): ValidationIssue[]; // plain-English fixes
+  /** Plain-English warnings (Table 3). Never blocks; never edits media. */
+  validate(t: TargetDraft, media: MediaProbe[]): ValidationIssue[];
 
-  /** Resumable and idempotent per chunk. Returns refs to persist (session URI, container ID…). */
-  transferMedia(ctx: Ctx, t: TransferInput, resume?: PlatformRef): AsyncIterable<TransferProgress>;
+  /** Caption text as this platform wants it (title/description split, hashtags, length trim warnings). */
+  captionFormat(t: TargetDraft): { text: string; title?: string; hashtags?: string[] };
 
-  /** NOT idempotent. Called once per attempt with retries: 0. 'unknown' => reconcile, never retry. */
-  publish(ctx: Ctx, t: PublishInput): Promise<
-    | { kind: 'accepted'; ref: PlatformRef }
-    | { kind: 'rejected'; code: string; retryable: boolean; retryAfterMs?: number }
-    | { kind: 'unknown'; ref?: PlatformRef }>;
+  /** Handoff target page (opened in the user's normal browser). */
+  uploadPageUrl(t: TargetDraft): string;
 
-  getStatus(ctx: Ctx, ref: PlatformRef): Promise<
-    | { state: 'processing' }
-    | { state: 'published' | 'draft_sent'; postId?: string; url?: string; visibility: Visibility }
-    | { state: 'failed'; code: string }
-    | { state: 'unknown' }>;
+  /** Free intent/share link, or null when the post does not fit (e.g. media on Snap/FB). */
+  buildIntentUrl?(t: TargetDraft): string | null;
 
-  disconnect(ctx: Ctx, acct: AccountSecrets): Promise<void>;                 // revoke where supported
+  /** Validates a pasted post link, and matches the URL assisted fill sees after posting. */
+  parsePostUrl(url: string): { postId: string } | null;
 
-  manual: {
-    intentUrl?(t: PublishInput): string;                                     // X intent, FB Share Dialog, Snap share
-    handoff(t: PublishInput): { openUrl: string; caption: string; fileName: string; webShare: boolean };
-    parsePostUrl(url: string): { postId: string } | null;                    // validates pasted links
+  /** Desktop only. Field map keys; the selectors themselves come from the signed feed. */
+  assistedFill?: {
+    startUrl: string;
+    fields: Array<'file' | 'caption' | 'title' | 'description' | 'hashtags'>;
+    signInCheckUrl: string;                          // used by the M8 sign-in test
   };
 }
+
+/** Chooses the mode per target. Desktop: assisted > intent > handoff. Web/phone: intent > handoff. */
+export function chooseMode(a: PlatformAdapter, t: TargetDraft, client: ClientKind,
+  optedIn: boolean, cfg: RemotePlatformConfig): Mode;
 ```
 
-- **A 7th platform** = a new adapter file + an `AdapterConfig` + a `platform_status` row.
-- **Fake adapter** (`platform: 'fake'`): configurable latency, failures (429, 5xx, timeout before and after the publish call, processing failure) and `unknown` outcomes. It drives the engine tests and the demo.
-- **Tests:** every real adapter gets mocked-response tests for success, 401 → refresh, 429 + Retry-After, 5xx, timeout, malformed response and cap reached.
+- **A 7th platform** = a new adapter file + a `remote_config` entry (+ selector entries in the feed for assisted fill).
+- **Fake adapter** (`platform: 'fake'`): a local test upload page and intent URL, an assisted-fill descriptor against a local test form, and configurable failures (form changed, sign-in blocked, post URL not captured). It drives the UI, scheduler and assisted-fill tests and the demo.
+- **Tests:** every adapter gets tests for intent URL building, caption formatting, validation edge cases and post-URL parsing.
 
 ---
 
 ## E. Posting modes per platform
 
-**Assisted fill: owner approved all six (2026-11-14).** The last column records the terms risk shown in each platform's opt-in warning. M8 starts with a hands-on sign-in test per platform; where sign-in is blocked, assisted fill is skipped for that platform and handoff is used. No user-agent spoofing or other workaround.
+**A person presses Post every time, on every platform.**
 
-| Platform | Available now (no approval) | After approval | Default mode | Why | Assisted fill (owner approved all six) |
+Mode preference:
+- **Desktop:** assisted fill (if the user opted in, the kill switch is off, and sign-in works) > intent/share (where it exists and fits the post) > handoff.
+- **Web / phone:** intent/share (where it fits) > handoff.
+
+**Assisted fill (owner approved all six, 2026-11-14):**
+- Desktop only. Off by default. Opt-in per platform after a plain warning naming that platform's risk (last column).
+- The user's own session in an in-app window. The user signs in and presses Post. **xpost never presses Post.**
+- Sessions stay on the device; Electron cookie-encryption fuse on.
+- Signed, versioned selector config via the updater/feed. Remote kill switch per platform.
+- If a field cannot be filled, a plain-English message and fallback to handoff.
+- M8 starts with a hands-on sign-in test per platform. Any platform that blocks in-app sign-in (likely YouTube, because of Google's embedded-browser block) uses handoff. **No workaround:** no user-agent spoofing, stealth, fingerprinting, proxies, CAPTCHA bypass or private endpoints.
+
+| Platform | Intent / share (free link, "You press Post") | Handoff ("You press Post") | Web default | Desktop default | Assisted fill warning risk |
 |---|---|---|---|---|---|
-| **TikTok** | Handoff (TikTok Studio / Web Share). Sandbox for testing. | After `video.upload` review: **Draft in TikTok**, schedulable. After the audit: Automatic (Direct Post). | **Draft in TikTok** once approved; handoff until then | No audit needed. The user presses Post in TikTok. 5 pending drafts/24 h. | **Approved, opt-in (desktop).** Warning risk: Global ToS bans scripts that interact with the service. Embedded sign-in UNVERIFIED. |
-| **Instagram** | Handoff (`instagram.com` / Web Share to the IG app). Automatic for app-role testers only. | Automatic for professional accounts (App Review + Business Verification). | **Automatic** for pro accounts; **handoff** for personal accounts | Personal accounts have no API. No web intent exists. | **Approved, opt-in (desktop).** Warning risk: Meta ADC bans scripting actions; Meta has sued posting-automation tools. |
-| **YouTube** | **Automatic** (public allowed since 2026-11-02), up to 100 uploads/day for the project; 100-user cap until verified. Handoff (Studio). | OAuth verification removes the user cap. The quota audit raises 100/day. | **Automatic**; handoff when the daily quota is used up. Option: "upload private, publish in Studio", sent only when the user presses Send now, never on a schedule. | Only real automatic route that needs no approval besides X. | **Approved, opt-in (desktop).** Warning risk: Google blocks embedded sign-in; ToS bans automated access. |
-| **X** | **Automatic** (paid per post). **Intent** (free, text and links). Handoff for media without the API. | n/a (no review) | **Automatic** within the licence's X cap. For link posts, recommend the **intent** default (decision I-2). | API cost is $0.015, or $0.20 with a link. | **Approved, opt-in (desktop).** Warning risk: "Scripting the X website" is banned (permanent suspension). |
-| **Facebook** | Share Dialog (links, profile). Handoff. Automatic for app-role users only. | Automatic for **Pages**. (Meta's API draft is not offered as a scheduled mode.) | **Automatic** for Pages; **Share Dialog / handoff** for profiles | The API cannot post to profiles or groups. | **Approved, opt-in (desktop).** Warning risk: Same Meta terms; embedded login blocked. |
-| **Snapchat** | Handoff (`my.snapchat.com` / `profile.snapchat.com` / Web Share). Share link for URLs. | After **allowlist**: Automatic for Public Profile admins. Spotlight shows "Submitted" until Snap reviews it. | **Handoff** | Allowlist access depends on a Snap contact, so it is uncertain. | **Approved, opt-in (desktop).** Warning risk: ToS bans "automated or semi-automated means". |
+| **TikTok** | None on the web. | TikTok Studio (`tiktok.com/tiktokstudio`, then Upload); Web Share to the TikTok app on phones. | Handoff | Assisted if opted in, else handoff | Global ToS bans scripts that interact with the service. Embedded sign-in UNVERIFIED. |
+| **Instagram** | None on the web (UNVERIFIED negative). | `instagram.com` (Create); Web Share to the IG app on phones. | Handoff | Assisted if opted in, else handoff | Meta ADC bans scripting actions; Meta has sued posting-automation tools. FB Login blocked in embedded browsers; IG website sign-in UNVERIFIED. |
+| **YouTube** | None (UNVERIFIED negative). | `studio.youtube.com` (Create, Upload). | Handoff | Handoff unless the sign-in test passes (unlikely) | Google blocks embedded sign-in; ToS bans automated access. |
+| **X** | **Web intent** `x.com/intent/tweet`: text, url, hashtags; **no media**. Free [LIVE]. | Composer (`x.com/compose/post`, UNVERIFIED path). For media posts, open the intent URL (caption prefilled) and hand over the file. | Intent (text/link); intent + file handover (media) | Assisted if opted in, else as web | "Scripting the X website" is banned (permanent suspension). |
+| **Facebook** | **`sharer.php?u=`** for link posts (no app ID; works per [3P] reports). The Share Dialog (with `hashtag`) needs a Meta `app_id`, i.e. a Meta developer app; not used unless you approve (I-16). | `facebook.com` composer; Business Suite (deep link UNVERIFIED); Web Share on phones. | Sharer (link posts); handoff (media) | Assisted if opted in, else as web | Same Meta terms; embedded FB Login blocked. |
+| **Snapchat** | **Share link** `snapchat.com/share?link=` (URLs only, no review). | `my.snapchat.com` / `profile.snapchat.com` / `snapchat.com/spotlight`; Web Share on phones. | Share link (link-only posts); handoff (media) | Assisted if opted in, else as web | ToS bans "automated or semi-automated means". |
 
-**Rules in every manual mode**
+**Rules in every mode**
 - A person presses Post every time.
-- Only TikTok drafts are sent on a schedule. Other manual targets become reminders with a one-click action.
-- No server-side browser automation. No social passwords or cookies on the server.
-- No CAPTCHA bypass, fingerprint spoofing, stealth, proxies or private endpoints.
+- Every scheduled item becomes a reminder with a one-click action. No exceptions.
+- No server-side browser automation. No social passwords, cookies or tokens on the server.
+- No CAPTCHA bypass, fingerprint spoofing, stealth, user-agent spoofing, proxies or private endpoints.
+- Never mark a target posted on a guess.
 
 ---
 
 ## F. Cost per 1,000 posts
 
 ### Assumptions (all mine; adjust as needed)
-- **1,000 posts.** Each post has one **50 MB** video and goes to **3 targets on average** (3,000 targets).
-- **Platform mix:** TikTok 700 (draft API), Instagram 700, YouTube 500, Facebook 400, X 500 (all API), Snapchat 200 (handoff). That makes **2,800 API-mode targets and 200 manual**.
+- **1,000 posts.** Each post has one **50 MB** video and goes to **3 targets on average** (3,000 targets), so **3,000 reminders** (one push channel each).
 - **Retention:** 7 days.
-- **Worker requests:** about 200 per post (UI, autosave, part signing, status).
-- **CPU:** 5 ms per request; about 500 ms per API target's Workflow.
-- **Workflow steps:** 15 per API target; 3 per manual target.
-- **R2 parts:** 10 MiB browser parts, so 7 Class A operations per file. About 10 Class B reads per API target.
-- **D1:** about 100 rows written and 10,000 rows read per post (indexes included).
+- **Worker requests:** about 150 per post (UI, autosave, part signing, one-click actions, confirmations).
+- **Cron:** a sweep every minute (about 43,200 runs a month) plus two daily jobs. This is fixed, not per post. I count each run as a request (Assumption).
+- **CPU:** 5 ms per request (Assumption).
+- **R2:** 10 MiB browser parts, so about 7 Class A operations per upload. About 4 Class B reads per post (handed-over downloads and probes).
+- **D1:** about 60 rows written and 10,000 rows read per post, plus about 10 rows read per sweep run.
+- **Web push** sends are outbound requests to the browser vendors' push services. No fee was found for them (UNVERIFIED that none exists).
 - Prices are list prices from the Cloudflare docs, **before** included allowances (worst case).
 
 ### Cloudflare (variable)
 | Item | Quantity | Unit price | Cost |
 |---|---|---|---|
-| Workers requests | ~0.2 M | $0.30 / M | $0.06 |
-| Workers CPU | ~2.4 M CPU-ms | $0.02 / M | $0.05 |
-| Workflow steps | ~42,600 | $0.80 / 100k | $0.34 |
-| Workflow storage | small | 1 GB-month included | ~$0.00 |
-| D1 writes / reads | 0.1 M / 10 M rows | $1.00 / M; $0.001 / M | $0.10 + $0.01 |
+| Workers requests | ~0.15 M + ~0.04 M cron | $0.30 / M | $0.06 |
+| Workers CPU | ~1 M CPU-ms | $0.02 / M | $0.02 |
+| D1 writes / reads | 0.06 M / ~10.4 M rows | $1.00 / M; $0.001 / M | $0.06 + $0.01 |
 | R2 storage | 50 GB × 7/30 month = 11.7 GB-month | $0.015 / GB-month | $0.18 |
 | R2 Class A | ~7,000 | $4.50 / M | $0.03 |
-| R2 Class B | ~28,000 | $0.36 / M | $0.01 |
-| R2 egress (platform pulls) | — | free | $0.00 |
-| **Subtotal** | | | **≈ $0.78** |
-| Queue (only if kept, option A) | ~9,000 ops | $0.40 / M | ≈ $0.004 |
-| Email reminders (optional) | ~900 (manual + TikTok drafts) | 3,000/month free, then $0.35 / 1,000 | $0 – $0.32 |
+| R2 Class B | ~4,000 | $0.36 / M | < $0.01 |
+| R2 egress (downloads) | — | free | $0.00 |
+| Workflows, Queues, Durable Objects | not used | — | $0.00 |
+| **Subtotal** | | | **≈ $0.36** |
+| Email reminders (optional) | up to 3,000 | 3,000/month free, then $0.35 / 1,000 | $0 – $1.05 |
 
-**Fixed: Workers Paid base $5/month.** It includes 10M requests, 30M CPU-ms, 500k Workflow steps, 25B D1 reads and 50M D1 writes. **At 1,000 posts/month, the $5 base covers everything above** except about 1.7 GB-month of R2 above the 10 GB free tier (≈ $0.03).
+**Fixed: Workers Paid base $5/month.** It includes 10M requests, 30M CPU-ms, 25B D1 reads and 50M D1 writes. **At 1,000 posts/month, the $5 base covers everything above** except about 1.7 GB-month of R2 above the 10 GB free tier (≈ $0.03).
 
-### Paid APIs
-| Item | Per 1,000 X posts | In the mix above (500 X posts) |
-|---|---|---|
-| X post, no URL | $15.00 | $7.50 |
-| X post, with URL | $200.00 | $100.00 |
-| X media upload | **UNVERIFIED.** A forum reports it billed as PostCreate; if so, up to +$15.00 | up to +$7.50 |
-| X `users/me` | $0.010 once per connected account (deduped per day) | — |
-| TikTok, Instagram, Facebook, YouTube | No paid tier found | $0 |
-| Snapchat | No fee found (UNVERIFIED that it is free) | $0 |
+### Platform costs
+| Item | Cost |
+|---|---|
+| X API | **$0** (not used) |
+| X web intent, Facebook sharer, Snapchat share link | $0 (plain links, no keys) |
+| TikTok, Instagram, YouTube, Facebook, Snapchat APIs | $0 (not used) |
 
-**Bottom line:** X is the only real variable cost. Cloudflare usage is **≈ $0.78 per 1,000 posts** at list price. At 1,000 posts/month the $5 base absorbs all but ≈ $0.03. The YouTube share (500 uploads) only works if it stays at 100 or fewer per day across all users.
+**Bottom line:** about **$0.36 per 1,000 posts** at list price, all Cloudflare. At 1,000 posts/month the $5 base absorbs all but ≈ $0.03. The only optional variable cost is email (codes and reminders), which needs your approval.
 
 ---
 
 ## G. Hosted posting API ("bridge") comparison
 
-**All vendor figures come from search summaries. None were confirmed against live pricing pages.** No vendor site could be fetched. This is **not a recommendation to adopt. Any bridge needs your go-ahead.**
+**Moot under the no-API decision. A bridge is an API that costs money.** The table is kept as research only.
+
+All vendor figures come from search summaries. None were confirmed against live pricing pages.
 
 | Provider | TikTok | IG | YT | X | FB | Snap | Pricing (reported) | Resale / white-label | Trade-offs |
 |---|---|---|---|---|---|---|---|---|---|
@@ -554,78 +544,66 @@ export interface PlatformAdapter {
 | Postiz | Yes (self-host = your own audit) | Yes | Yes | Yes | Yes | No | Cloud ~$29 – $99/mo; self-host free (AGPL) | Unclear | Self-host gives no approval shortcut |
 | Publer / Buffer | Yes | Yes | Yes | Yes | Yes | No | Per account / channel | Not designed for it (Buffer reportedly forbids it) | Not viable for multi-tenant |
 
-**What any bridge means for xpost**
-- Users see the **bridge's app name** on the TikTok, Google and Meta consent screens.
-- The bridge holds users' tokens. Users must reconnect if you leave it.
-- If the bridge's app is revoked, every customer is affected at once.
-- The bridge is an extra data processor, which must go in the privacy policy.
-- It does **not** change the X bill (bundle.social passes X cost through).
-- **Main upside:** immediate TikTok public posting and Snapchat (Ayrshare, bundle.social) without your own audit or allowlist.
-- The bridge report's YouTube argument is **out of date**: YouTube no longer locks unaudited uploads to private.
-
 ---
 
 ## H. What I need from you
 
-Lead times are **not in the research** unless stated. "Weeks" is my assumption. Start the slow ones at M1.
+Lead times are **not in the research** unless stated. No platform developer accounts, app reviews or API credits are needed.
 
 | # | Item | Needed by | Lead time | Notes |
 |---|---|---|---|---|
-| 1 | **Cloudflare Workers Paid** ($5/mo), plus an API token for GitHub Actions (Workers, D1, R2, Workflows edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the xpost bucket) as Worker secrets | M1 | Minutes | Free plan cannot run the engine. |
+| 1 | **Cloudflare Workers Paid** ($5/mo), plus an API token for GitHub Actions (Workers, D1, R2 edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the xpost bucket) as Worker secrets | M1 | Minutes | See section C for why Paid. |
 | 2 | **GitHub repo** (one repo: `/web`, `/worker`, `/desktop`, `/shared`) + a public releases repo for the updater, and Actions secrets | M1 | Minutes | |
-| 3 | **Lemon Squeezy**: new xpost product and variants, store ID, product and variant IDs, API key, webhook secret, webhook URL set to the Worker | M1 | Hours | Plan names, prices, session and device limits per plan. |
-| 4 | **Domain** (recommend Cloudflare Registrar) | **M1 (recommended)**; M5 at the latest | Hours, then DNS | Unlocks email codes, Google/Meta verification and the TikTok media domain. |
-| 5 | Public **privacy policy, terms and data-deletion page** on the domain | M5–M6 | Days (writing) | Needed by Google, Meta and TikTok review. |
-| 6 | **X developer account**, app, credits (+ $20 incentive), spending limit | M5 (X is first) | Same day | Callback URL is the Worker. |
-| 7 | **Google Cloud project**, OAuth consent screen, YouTube Data API; then **OAuth verification** and the **YouTube Audit and Quota Extension Form** | M5 (submit early) | Weeks (assumption) | Verification needs a verified domain homepage and a demo video. |
-| 8 | **TikTok developer app** (Login Kit + Content Posting), sandbox, `video.upload` review; later the **Direct Post audit** | M5 | Weeks (assumption) | Demo video required. Verify the media domain (DNS TXT). |
-| 9 | **Meta Business** app; **Business Verification**; App Review screencasts for each permission | M5 (Meta adapters); verification started at M1 | Weeks (assumption) | Start Business Verification at M1. Needs company documents (Assumption). |
-| 10 | **Snap Business Account**, OAuth app in **Ads Manager**, and a **Snap contact** for the allowlist | M5 (last adapter) | Unknown (depends on Snap) | Without a contact, Snapchat stays handoff only. |
-| 11 | **Apple Developer Program** (fee not researched; Assumption: ~$99/yr), Developer ID cert, notarytool API key | M7 | Days | Needed for Mac auto-update. |
-| 12 | **Windows signing**: Azure Trusted Signing (recommended) or an OV/EV certificate | M7 | Days to weeks | Prices not researched. |
-| 13 | Support email address and brand assets (logo, colour) | M2 | — | |
-| 14 | Decisions in section I | Before M1 | — | |
+| 3 | **Lemon Squeezy**: new xpost product and variants, store ID, product and variant IDs, API key, webhook secret, webhook URL set to the Worker | M1 | Hours | Plan names, prices, session/device/storage limits per plan. |
+| 4 | **Domain** (recommend Cloudflare Registrar) | **Recommended; required by launch** | Hours, then DNS | For email sign-in codes, the update feed and branding. Not needed for any platform. workers.dev is fine for development. |
+| 5 | **VAPID keypair** for web push | M4 | Minutes | We generate it; you store the private key as a Worker secret. |
+| 6 | Support email address and brand assets (logo, colour) | M2 | — | |
+| 7 | **Privacy policy, terms and data-deletion page** for xpost itself | M6 (before launch) | Days (writing) | Needed for Lemon Squeezy and customers, not for platforms. |
+| 8 | **Apple Developer Program** (fee not researched; Assumption: ~$99/yr), Developer ID cert, notarytool API key | M7 | Days | Needed for Mac auto-update. |
+| 9 | **Windows signing**: Azure Trusted Signing (recommended) or an OV/EV certificate | M7 | Days to weeks | Prices not researched. |
+| 10 | **Approval for Email Service** (if you want email codes or email reminders) | M1 (codes) or M4 (reminders) | — | Free up to 3,000/month, then $0.35 per 1,000. Needs the domain. |
+| 11 | Decisions in section I | Before M1 | — | |
 
 ---
 
 ## I. Decisions for you (with my recommendation)
 
-1. **Bring-your-own X keys.** X's terms forbid it. Its Developer Policy says you may not use "API keys or other access credentials owned by others" or ask users for their consumer key.
-   - **Recommend:** one xpost-owned X app, OAuth per user, and a **monthly X spend cap per licence**.
-2. **X cost and link posts.**
-   - **Recommend:** each plan includes N automatic X posts a month.
-   - Posts **with links** default to "You press Post" (free intent), with an opt-in to send automatically at $0.20.
-   - Show the cost before sending.
-3. **Assisted fill (M8). DECIDED: all six platforms (owner, 2026-11-14).**
-   - Desktop only, off by default, opt-in per platform after a plain warning naming that platform's risk (X: permanent suspension; Meta: legal action history).
-   - The user's own session in an in-app window; the user logs in and presses Post. Sessions never leave the device; Electron cookie-encryption fuse on.
-   - Versioned, signed selector config via the updater/feed; remote kill switch per platform; plain-English fallback to handoff when a field can't be filled.
-   - Sign-in test first. If a platform blocks sign-in in the in-app window, skip it. No workarounds (no UA spoofing, stealth, CAPTCHA bypass).
-4. **Stronger sign-in.**
-   - **Recommend:** licence key + purchase email + **emailed 6-digit code** (Email Service, about $0.35 per 1,000 after 3,000 free each month). It needs the domain.
-   - Add passkeys later as an optional upgrade (free, no email).
-   - Until the domain exists, use key + email only, plus strict rate limits.
-5. **Queue in the engine.**
-   - **Recommend: no Queue** (option C). Revisit above about 100 instance starts a second.
-6. **Domain timing.**
-   - **Recommend: buy it now** at Cloudflare Registrar. Keep workers.dev for dev and preview.
-7. **Instagram login type.**
-   - **Recommend:** Instagram Login (no Page, no portfolio) for creators, plus Facebook Login for Business for Pages, both in **one Meta app**.
-   - Add Unified Login later for business users.
-8. **Bridge or not.**
-   - **Recommend: no bridge now.** Revisit only if TikTok's audit or Snap's allowlist stalls after launch. Needs your go-ahead either way.
-9. **Signing budget.**
-   - **Recommend:** Apple (Assumption: ~$99/yr) and Azure Trusted Signing at M7. Without them, Mac users cannot auto-update (as in XLISTit).
-10. **TikTok audit.**
-    - **Recommend:** launch with "Draft in TikTok". Apply for the Direct Post audit once real usage exists, but build the required posting UX from day one.
-11. **YouTube quota.**
-    - **Recommend:** file the quota extension at M5. Show a "YouTube daily limit reached → You press Post" fallback.
-12. **Default limits.**
-    - **Recommend** (assumptions; tune per plan): 3 web sessions, 2 desktop devices, 7-day media retention, 7-day desktop offline grace.
-13. **Email reminders.**
-    - **Recommend:** off by default, available per user.
-14. **Facebook `publish_video` scope.**
-    - **Recommend:** request it only if Page video fails without it. Meta's docs conflict.
+Numbering is kept from the earlier draft so references stay stable.
+
+**Decided**
+- **3. Assisted fill (M8). DECIDED: all six platforms (owner, 2026-11-14).**
+  - Desktop only, off by default, opt-in per platform after a plain warning naming that platform's risk (X: permanent suspension; Meta: legal action history).
+  - The user's own session in an in-app window; the user logs in and presses Post. Sessions never leave the device; Electron cookie-encryption fuse on.
+  - Versioned, signed selector config via the updater/feed; remote kill switch per platform; plain-English fallback to handoff when a field can't be filled.
+  - Sign-in test first. If a platform blocks sign-in in the in-app window, it uses handoff. No workarounds (no UA spoofing, stealth, fingerprinting, proxies, CAPTCHA bypass, private endpoints).
+- **15. No platform APIs. DECIDED (owner, 2026-11-14).** No posting APIs, no platform sign-in connections, no tokens, no developer accounts, no reviews. Nothing posts automatically.
+
+**Still open**
+- **4. Stronger sign-in.**
+  - **Recommend:** licence key + purchase email + **emailed 6-digit code**. It needs the domain and Email Service (free up to 3,000/month, then about $0.35 per 1,000), so it needs your approval.
+  - Add passkeys later as an optional upgrade (free, no email).
+  - Until then, key + email only, plus strict rate limits.
+- **6. Domain timing.**
+  - **Recommend:** buy it before launch (earlier if you want email codes). Keep workers.dev for development and preview.
+- **9. Signing budget.**
+  - **Recommend:** Apple (Assumption: ~$99/yr) and Azure Trusted Signing at M7. Without them, Mac users cannot auto-update (as in XLISTit). This matters more now: desktop is where assisted fill lives.
+- **12. Default limits.**
+  - **Recommend** (assumptions; tune per plan): 3 web sessions, 2 desktop devices, 7-day media retention, 7-day desktop offline grace, a storage cap per plan.
+- **13. Email reminders.**
+  - **Recommend:** off by default, available per user, only if you approve Email Service (it costs money beyond 3,000/month).
+- **16. Facebook Share Dialog app ID (optional, small).**
+  - The Share Dialog adds a `hashtag` parameter but needs a Meta `app_id`, which means registering a Meta developer app (no review, no API calls).
+  - **Recommend:** no. Use `sharer.php` (no app ID). Revisit only if you want the hashtag parameter.
+
+**Moot under the no-API decision**
+- 1. Bring-your-own X keys — moot (no X API).
+- 2. X cost and link posts — moot (X intent is free; X spend is $0).
+- 5. Queue in the engine — moot (no Queue or Workflow needed; section C).
+- 7. Instagram login type — moot (no Meta API).
+- 8. Bridge or not — moot (a bridge is a paid API; section G).
+- 10. TikTok audit — moot.
+- 11. YouTube quota — moot.
+- 14. Facebook `publish_video` scope — moot.
 
 ---
 
@@ -633,48 +611,38 @@ Lead times are **not in the research** unless stated. "Weeks" is my assumption. 
 
 | # | Risk / unknown | Impact | How to settle |
 |---|---|---|---|
-| 1 | TikTok Photo reference says unaudited content is private; does that apply to inbox drafts? | Draft mode could be weaker than expected | Sandbox test in M5. |
-| 2 | TikTok and Meta approvals can be refused or slow | Automatic posting delayed | Apply early. Handoff works from day one. |
-| 3 | YouTube 100 uploads/day shared by all users | YouTube automation caps out fast | Quota form at M5. Global counter + handoff fallback. |
-| 4 | Snap allowlist may be unreachable | No Snapchat API | Ask Snap; default to handoff. |
-| 5 | X media-upload cost not published | Cost estimate off | One test upload; read the Developer Console usage. |
-| 6 | X per-user daily write caps reported lower on pay-per-use | Failed X posts | Read `x-rate-limit-*` headers; surface clearly. |
-| 7 | IG cap 50 vs 100 | Over-posting errors | Read `content_publishing_limit` live. |
-| 8 | IG pull: domain verification really not needed? Does a workers.dev URL work? | IG blocked before the domain | Test with an app-role account in M6. |
-| 9 | TikTok: query-string tokens under a verified prefix | Media route design | Use path tokens; test in M5. |
-| 10 | Workers/Workflows outbound body limit | Large chunks fail | Keep chunks at 100 MiB or less (design already does). |
-| 11 | `FixedLengthStream` needed with an R2 body? | Missing Content-Length | Use it always; test in M4. |
-| 12 | Streaming AES-256-CBC for Snapchat in Workers | Snap adapter design | Spike in M7. |
-| 13 | Which LS field gives the purchase email for sign-in | Sign-in design | Check the LS API in M2. |
-| 14 | Long-sleeping Workflow instances and code versions | Bugs after deploys | Option C keeps sleeps short (minutes). |
-| 15 | `youtube.upload` sensitive vs restricted | Verification cost and time | Check in Google Cloud console at M5. |
-| 16 | FB Reels / Page video size limits; post text length | Validation rules | Read live docs before M6; keep limits in config. |
-| 17 | Meta Business Suite deep link; how API drafts appear there | FB draft-mode UX | Test in M6. |
-| 18 | Web Share API with files, and iOS web push | Phone handoff and reminders | Device tests in M3. |
-| 19 | Embedded sign-in on TikTok, X and Snap | Moot (no assisted fill) | No action. |
-| 20 | Bridge prices and terms | Only if a bridge is considered | Read live vendor pages. |
-| 21 | Token leak or key compromise | User accounts exposed | AES-GCM, key versioning, rotation job, scrubbed logs, separate keys. |
-| 22 | Platform policy changes (as YouTube's on 2026-11-02) | Modes change | Remote config and kill switches; re-check docs each milestone. |
+| 1 | **Assisted fill breaks when a platform changes its upload page** | Fields not filled; user confused | Signed versioned selector feed (fix without a release); per-platform kill switch; fallback to handoff with a plain message; fake-adapter tests for "form changed". |
+| 2 | **Account risk to users** who opt in: all six platforms' terms restrict automation (X: permanent suspension; Meta: lawsuits against automation tools) | A user's account could be restricted | Off by default; opt-in per platform after a plain warning naming the risk; user presses Post; no stealth. Document in the README's known limits. |
+| 3 | **Platforms that block in-app sign-in** (likely YouTube; Meta blocks FB Login in embedded browsers; TikTok, X, Snap UNVERIFIED) | Assisted fill unavailable there | M8 sign-in test per platform; blocked → handoff, no workaround. |
+| 4 | **Web Share API with files** support varies by phone browser | Phone handoff falls back to download + copy | Feature-detect `navigator.canShare({files})`; device tests in M3. |
+| 5 | **iOS web push** may need the app installed to the home screen | iPhone users miss push reminders | Device tests in M3/M4; in-app "Ready to post" list; optional email; desktop notifications. |
+| 6 | Notifications denied or missed (cron runs can be missed) | Late reminders | Look-back sweep; "Ready to post" list; reminder failure alerts (M9). |
+| 7 | Web upload limits differ from the researched API limits | Wrong warnings | Limits in remote config; validation warns, never blocks; check each platform's web uploader in M3. |
+| 8 | TikTok web upload duration: 30 vs 60 min (sources conflict) | Wrong warning | Use the stricter value until checked. |
+| 9 | Facebook `sharer.php` is legacy ([3P] reports only) | FB link sharing may break | Intent kill switch per platform; handoff fallback. |
+| 10 | X intent path (`/intent/tweet` vs `/intent/post`) | Broken intent link | Use the [LIVE] documented `/intent/tweet`; intent kill switch. |
+| 11 | Which LS field gives the purchase email for sign-in | Sign-in design | Check the LS API in M1. |
+| 12 | FB/IG/YouTube/X web-upload page deep links (UNVERIFIED paths) | Handoff opens a generic page | Keep URLs in remote config; check in M3. |
+| 13 | Web push has no fee (UNVERIFIED) | Cost estimate off | Check push-service terms in M4. |
+| 14 | Platform policy changes | Modes change | Remote config and kill switches; re-check docs each milestone. |
+| 15 | Licence-key or session leak | Unauthorised use | Hashed keys and session IDs, CSRF, rate limits, scrubbed logs, separate signing keys. |
 
 ---
 
 ## K. Milestones (your build order) and model routing
 
-Routing rule: **Opus** for hard work (research and planning; tokens, OAuth, sessions, licences, webhooks; publishing engine; API adapters and media transfer; schema and migrations; reviews). **Sonnet** for routine work (UI screens, fake adapter, unit tests for existing code, handoff mode, reminders, simple CRUD, README, config, CI tweaks). Every milestone ends with an Opus review by an agent that did not write the code, then a stop for your sign-off.
+Routing rule: **Opus** for hard work (schema and migrations; licence, sessions and webhooks; the reminder scheduler; assisted fill; signing and updater; reviews). **Sonnet** for routine work (UI screens, fake adapter, handoff, reminders UI, simple CRUD, README, CI). Every milestone ends with an Opus review by an agent that did not write the code, then a stop for your sign-off.
 
-| M | Scope (your plan) | Changes from Step 0 findings | Tasks → model |
+| M | Scope (your plan) | What changed (no-API decision) | Tasks → model |
 |---|---|---|---|
-| **M1** Repo, CI, Cloudflare, schema, sign-in | Monorepo `/web` `/worker` `/desktop` `/shared`. CI tests. Actions deploy to workers.dev (Worker + Static Assets). D1 schema v1 + migrations. R2 bucket, CORS (expose `ETag`), lifecycle. Web sign-in: purchase email + licence key via Worker, forked from XLISTit licence code. LS webhook. Sessions, CSRF, rate limits, session/device limits in config. Daily re-validation. | Deploy via Actions (XLISTit uses Cloudflare Git builds). Webhook also handles cancelled/expired subscriptions. Emailed code added once the domain exists (I-4). Remote config + kill switches set up now. | Schema, migrations, licence, sessions, webhook → **Opus**. Repo scaffolding, CI, config files → **Sonnet**. |
-| **M2** Web UI on the fake adapter | Accounts, composer (master + per-platform overrides + platform fields), R2 signed multipart uploads, per-platform validation, schedule (calendar, queue), history and filters, drafts (autosave, duplicate). Light/dark, phone layout. | Validation rules use the verified limits (IG carousel 20, Snap video 5–300 s, etc.), kept in config. | Upload signing + validation rules → **Opus**. Fake adapter, screens, CRUD routes → **Sonnet**. |
-| **M3** Handoff, X intent, reminders | Handoff for all six. X web intent. Reminders (browser notifications). "Ready to post" list. Manual statuses: waiting for you, handed off, confirmed posted, paste link. | Also FB Share Dialog (links) and Snap share link (URLs only), found in Step 0. xpost is usable with no approvals. | Handoff, intents, reminders, list → **Sonnet**. Review → **Opus**. |
-| **M4** Publishing engine on the fake adapter | Scheduling, retries with backoff, 429 handling, idempotency, quotas, spend caps, licence pause. | Design: D1 source of truth, cron sweep each minute, one Workflow per target, no Queue (I-5). Per-account limits enforced by a Durable Object. Global YouTube daily counter. | Engine → **Opus**. Extra failure-case tests → **Sonnet**. Review → **Opus**. |
-| **M5** API adapters, easiest access first | One at a time; each works in private/test mode before any approval (except Snapchat, which cannot post at all until allowlisted). | Suggested order by access: **X** (no review, pay per use) → **YouTube** (public allowed since 2026-11-02; 100 uploads/day shared) → **TikTok draft** (`video.upload` review; sandbox first) → **Instagram + Facebook** (app-role testers until App Review) → **Snapchat** (only if allowlisted). YouTube, TikTok and Meta need the domain. | All adapters, OAuth, media transfer → **Opus**. Platform-specific UX screens (e.g. TikTok's required post screen) → **Sonnet**. |
-| **M6** Approval pack | Privacy policy, terms, data-deletion page, demo script per platform, prepared as each adapter works. You submit. | Meta data-deletion callback endpoint. Start Meta Business Verification at M1 (long lead). | Drafts → **Sonnet**. Claims checked against the code → **Opus**. |
-| **M7** Desktop app | XLISTit shell, activation + device binding, deactivate in settings, offline grace, offline drafts, notifications, drag-and-drop, file reveal, update assistant, signed Mac/Win installers, Releases feed. | Turn on Electron cookie-encryption fuse. New signing key (not XLISTit's). Signing in CI (XLISTit never did). Needs Apple + Windows certs (H-11, H-12). | Licence client, updater, signing pipeline → **Opus**. Shell wiring, desktop UI → **Sonnet**. |
-| **M8** Assisted fill | Only for platforms you approve. | **Approved: all six** (I-3). Step 1: in-app sign-in test per platform; blocked platforms (likely YouTube) stay on handoff. Step 2: per-platform fillers, warnings, kill switches, selector feed. | All assisted-fill work → **Opus**. Review → **Opus**. |
-| **M9** Hardening | Cost caps, monitoring, alerts on failed jobs, README with setup and known limits. | Also: export history, delete my data (if not done earlier), security review, sweep load test. | Security, cost caps, alerts → **Opus**. README → **Sonnet**. |
+| **M1** Repo, CI, Cloudflare, schema, sign-in | Monorepo `/web` `/worker` `/desktop` `/shared`. CI tests. Actions deploy to workers.dev (Worker + Static Assets). D1 schema v1 + migrations. R2 bucket, CORS (expose `ETag`), lifecycle. Web sign-in: purchase email + licence key via Worker, forked from XLISTit licence code. LS webhook. Sessions, CSRF, rate limits, session/device limits in config. Daily re-validation. Remote config + kill switches. | **Unchanged.** Schema has no platform-account, token or publish tables. Emailed code added once the domain and Email Service are approved (I-4). | Schema, migrations, licence, sessions, webhook → **Opus**. Repo scaffolding, CI, config files → **Sonnet**. |
+| **M2** Web UI on the fake adapter | **Platforms & modes** screen (no connections), composer (master + per-platform overrides + platform fields), R2 signed multipart uploads, per-platform validation, schedule (calendar), history and filters, drafts (autosave, duplicate). Light/dark, phone layout. | "Accounts" became "Platforms & modes": nothing to connect. Validation uses Table 3, kept in config. | Upload signing + validation rules → **Opus**. Fake adapter, screens, CRUD routes → **Sonnet**. |
+| **M3** Handoff, intents, reminders, "Ready to post" — **the core product** | Handoff for all six. X web intent. Facebook sharer. Snap share link. Reminders. "Ready to post" list. Statuses: waiting for you, handed off, confirmed posted, paste link. | Now the core product, not a fallback. xpost is usable by real users from here, with no approvals. | Handoff, intents, reminders UI, list → **Sonnet**. Review → **Opus**. |
+| **M4** Reminder scheduler | D1 source of truth, cron sweep each minute with look-back, conditional claim, web push (VAPID), desktop notification hook, optional email, licence pause, retention cleanup. | **Replaces the publishing engine.** No Workflows, Queues, Durable Objects, idempotent publish, reconcile, platform caps or spend caps. | Scheduler → **Opus**. Extra failure-case tests → **Sonnet**. Review → **Opus**. |
+| **M5** API adapters | — | **REMOVED by owner decision** (no APIs). | — |
+| **M6** Policy pages | xpost's own privacy policy, terms and data-deletion page. You publish. | **Reduced:** no platform demo scripts or approval pack. Needed for Lemon Squeezy and customers. | Drafts → **Sonnet**. Claims checked against the code → **Opus**. |
+| **M7** Desktop app | XLISTit shell, activation + device binding, deactivate in settings, offline grace, offline drafts, local notifications, drag-and-drop, file reveal, update assistant, signed Mac/Win installers, Releases feed. | **Unchanged in scope; more important**, because assisted fill lives here. Cookie-encryption fuse on. New signing key. Signing in CI. Needs Apple + Windows certs (H-8, H-9). | Licence client, updater, signing pipeline → **Opus**. Shell wiring, desktop UI → **Sonnet**. |
+| **M8** Assisted fill, all six | Step 1: hands-on in-app sign-in test per platform; blocked platforms (likely YouTube) use handoff, no workaround. Step 2: per-platform fillers, risk warnings and opt-in, kill switches, signed selector feed, post-URL capture, fallback to handoff. | Approved for all six (I-3). | All assisted-fill work → **Opus**. Warning copy, settings UI → **Sonnet**. Review → **Opus**. |
+| **M9** Hardening | Monitoring, alerts on failed reminders and cron jobs, README with setup and known limits. | Also: export history, delete my data (if not done earlier), security review, sweep load test. No cost caps needed. | Security, alerts → **Opus**. README → **Sonnet**. |
 
-**Approvals run in parallel with the build:**
-- Submit Meta Business Verification at M1.
-- Submit Google verification, the YouTube quota form and the TikTok `video.upload` review as soon as the domain and policy pages exist.
-- Until each approval lands, that platform uses handoff, so xpost works for real users from M3.
+**No approvals run alongside the build.** Nothing waits on TikTok, Meta, Google, X or Snap.
