@@ -1,0 +1,16 @@
+{
+  "name": "xpost",
+  "version": "0.1.0",
+  "private": true,
+  "description": "xpost: write once, post everywhere (manual intent links, handoff, desktop assisted fill; no social media APIs)",
+  "workspaces": ["web", "worker", "shared", "desktop"],
+  "scripts": {
+    "build": "npm run build -w web && npm run typecheck -w worker",
+    "dev": "npm run build -w web && wrangler dev",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "wrangler": "^4.157.0"
+  }
+}

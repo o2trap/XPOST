@@ -1,0 +1,23 @@
+# Cloudflare Worker with static assets (free plan), deployed by Cloudflare's Git integration (Workers Builds).
+# Dashboard build settings: Root directory = / (blank) · Build command = npm run build · Deploy command = npx wrangler deploy
+# Production branch: claude/great-lamport-krx9rg (every push deploys).
+# `name` must match the Worker's name in the Cloudflare dashboard.
+name = "xpost"
+main = "worker/src/index.ts"
+compatibility_date = "2026-10-01"
+# Serve on https://xpost.<account>.workers.dev (free address).
+workers_dev = true
+preview_urls = false
+# Keep variables added in the Cloudflare dashboard when deploying from GitHub (otherwise each deploy would remove them).
+keep_vars = true
+
+[assets]
+directory = "./web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# Every request goes to the Worker first: it redirects http to https, adds security headers and handles /api/*.
+# Everything else falls through to env.ASSETS.fetch.
+run_worker_first = true
+
+[vars]
+APP_NAME = "xpost"

@@ -1,0 +1,9 @@
+{
+  "name": "@xpost/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Placeholder for the desktop app (milestone M7). No Electron yet.",
+  "scripts": {
+    "test": "node -e \"process.exit(0)\""
+  }
+}
