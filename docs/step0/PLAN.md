@@ -49,7 +49,7 @@ xpost can be built on the planned stack: Cloudflare for the whole backend, GitHu
 - **Scheduling** = a reminder scheduler: D1 as the source of truth, a cron sweep every minute, web push plus desktop notifications, optional email.
 - **No Workflows, no Queues, no Durable Objects** are needed (section C).
 - **Domain:** no longer needed for platform verification. Still recommended for email sign-in codes, the update feed and branding. Not required until launch; workers.dev works for development.
-- **Cost:** Cloudflare usage is cents per 1,000 posts; the $5/month Workers Paid base absorbs it at MVP scale (section F).
+- **Cost:** Cloudflare usage is cents per 1,000 posts; the free Workers plan covers development; Workers Paid ($5/month) is deferred until launch or until free limits are hit (owner decision, section C).
 
 **Research findings that still matter** (all true facts; the API ones no longer affect the plan):
 - **All six platforms' terms restrict automation outside their APIs.** This is why assisted fill is opt-in with a plain warning (row 18–19 below).
@@ -228,7 +228,10 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 - One Worker serves the React SPA (`not_found_handling: "single-page-application"`) and the API. Static asset requests are free.
 - The same Worker holds the cron handlers (reminder sweep, licence re-validation, retention cleanup).
 - Deploy with GitHub Actions (`wrangler deploy`). Use `xpost.<account>.workers.dev` for development. The domain is one config value (`APP_ORIGIN`).
-- **Workers Paid ($5/month): keep it from M1.** The reason has changed: Workflows are gone. It is still needed because the Free plan's 10 ms CPU per request is tight for web push encryption and licence crypto, and Email Service requires Paid.
+- **Workers plan: Free for now (owner decision, 2026-11-14).** Workflows are gone, so Free covers M1–M4 development: D1, R2 (10 GB free), cron triggers, static assets, 100k requests/day.
+  - Watch item: Free allows 10 ms CPU per request. Licence checks and upload signing are light (waiting on Lemon Squeezy does not count). Web push encryption is per message, so the cron sweep sends reminders in small batches. We measure CPU in M1 and M4.
+  - Free has no Email Service, so no email codes or email reminders until Paid.
+  - Upgrade to Paid ($5/month) at launch, or earlier only if a free limit is hit. I will tell you first.
 
 ---
 
@@ -513,7 +516,7 @@ Mode preference:
 | **Subtotal** | | | **≈ $0.36** |
 | Email reminders (optional) | up to 3,000 | 3,000/month free, then $0.35 / 1,000 | $0 – $1.05 |
 
-**Fixed: Workers Paid base $5/month.** It includes 10M requests, 30M CPU-ms, 25B D1 reads and 50M D1 writes. **At 1,000 posts/month, the $5 base covers everything above** except about 1.7 GB-month of R2 above the 10 GB free tier (≈ $0.03).
+**Fixed (from launch): Workers Paid base $5/month. Not needed during development (Free plan).** Paid includes 10M requests, 30M CPU-ms, 25B D1 reads and 50M D1 writes. **At 1,000 posts/month, the $5 base covers everything above** except about 1.7 GB-month of R2 above the 10 GB free tier (≈ $0.03).
 
 ### Platform costs
 | Item | Cost |
@@ -522,7 +525,7 @@ Mode preference:
 | X web intent, Facebook sharer, Snapchat share link | $0 (plain links, no keys) |
 | TikTok, Instagram, YouTube, Facebook, Snapchat APIs | $0 (not used) |
 
-**Bottom line:** about **$0.36 per 1,000 posts** at list price, all Cloudflare. At 1,000 posts/month the $5 base absorbs all but ≈ $0.03. The only optional variable cost is email (codes and reminders), which needs your approval.
+**Bottom line:** about **$0.36 per 1,000 posts** at list price, all Cloudflare. On Free during development this is $0. After launch, the $5 base absorbs all but ≈ $0.03 at 1,000 posts/month. The only optional variable cost is email (codes and reminders), which needs your approval.
 
 ---
 
@@ -552,7 +555,7 @@ Lead times are **not in the research** unless stated. No platform developer acco
 
 | # | Item | Needed by | Lead time | Notes |
 |---|---|---|---|---|
-| 1 | **Cloudflare Workers Paid** ($5/mo), plus an API token for GitHub Actions (Workers, D1, R2 edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the xpost bucket) as Worker secrets | M1 | Minutes | See section C for why Paid. |
+| 1 | **Cloudflare account (Free plan for now; Paid $5/mo at launch)**, plus an API token for GitHub Actions (Workers, D1, R2 edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the xpost bucket) as Worker secrets | M1 | Minutes | Free is enough for M1–M4 (section C). |
 | 2 | **GitHub repo** (one repo: `/web`, `/worker`, `/desktop`, `/shared`) + a public releases repo for the updater, and Actions secrets | M1 | Minutes | |
 | 3 | **Lemon Squeezy**: new xpost product and variants, store ID, product and variant IDs, API key, webhook secret, webhook URL set to the Worker | M1 | Hours | Plan names, prices, session/device/storage limits per plan. |
 | 4 | **Domain** (recommend Cloudflare Registrar) | **Recommended; required by launch** | Hours, then DNS | For email sign-in codes, the update feed and branding. Not needed for any platform. workers.dev is fine for development. |
