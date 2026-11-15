@@ -19,7 +19,7 @@ import type { Ctx } from './app';
 import { DAY_MS, HOUR_MS, licenceConfigured } from './config';
 import { fail, json, readJson } from './http';
 import { fromBase64url, hmacB64, hmacHex, hmacVerify, randomId, randomToken, sha256Hex } from './crypto';
-import { Email, LicenceKey, checkForSignIn, deriveStatus, keyLast4, licenceKeyHash } from './licence';
+import { Email, LicenceKey, checkForSignIn, deriveStatus, keyLast4, licenceKeyHash, type SignInFailure } from './licence';
 import { allowSignIn, SIGNIN_FAILURES_PER_HOUR } from './rate-limit';
 import { syncPauseStatements } from './pause';
 import { licenceInfo, type LicenceRow } from './gate';
@@ -142,9 +142,13 @@ export async function handleSignIn(ctx: Ctx, req: Request, url: URL): Promise<Re
   if (!parsed.success) return fail('bad_request');
   const { email, licenceKey } = parsed.data;
 
+  // Approximate limits per email (any address) and on Lemon Squeezy as a whole.
   const emailKey = `email:${await keyed(ctx, 'rl', email)}`;
   if (!(await allowSignIn(ctx.env, emailKey, now))) return fail('rate_limited');
-  const attempts = await db.prepare('SELECT window_start, count FROM auth_attempts WHERE key = ?').bind(emailKey).first<{ window_start: number; count: number }>();
+  // Strict failure counter per email AND address, so a stranger who knows a customer's email can't lock them out
+  // from their own network (they only lock themselves out).
+  const attemptKey = `email-ip:${await keyed(ctx, 'rl', `${email}|${ctx.ip}`)}`;
+  const attempts = await db.prepare('SELECT window_start, count FROM auth_attempts WHERE key = ?').bind(attemptKey).first<{ window_start: number; count: number }>();
   if (attempts && attempts.window_start > now - HOUR_MS && attempts.count >= SIGNIN_FAILURES_PER_HOUR) return fail('rate_limited', { 'Retry-After': '3600' });
 
   let res;
@@ -153,25 +157,36 @@ export async function handleSignIn(ctx: Ctx, req: Request, url: URL): Promise<Re
     return fail('upstream_error');
   }
   const keyHash = await licenceKeyHash(licenceKey);
-  const existing = await db.prepare('SELECT id, user_id, status, status_reason FROM licences WHERE ls_license_key_hash = ?')
-    .bind(keyHash).first<{ id: string; user_id: string; status: LicenceStatus; status_reason: string | null }>();
+  const orderId = res.body.meta?.order_id ?? -1;
+  const [existingRes, userRes, refundRes] = await db.batch([
+    db.prepare('SELECT id, user_id, status, status_reason FROM licences WHERE ls_license_key_hash = ?').bind(keyHash),
+    db.prepare('SELECT id, deleted_at FROM users WHERE email = ?').bind(email),
+    db.prepare('SELECT 1 AS refunded FROM refunded_orders WHERE ls_order_id = ?').bind(orderId),
+  ]);
+  const existing = (existingRes!.results[0] ?? null) as { id: string; user_id: string; status: LicenceStatus; status_reason: string | null } | null;
+  const knownUser = (userRes!.results[0] ?? null) as { id: string; deleted_at: number | null } | null;
+  const orderRefunded = refundRes!.results.length > 0;
   const checked = checkForSignIn(cfg, res.body, email, now);
   const ipHash = await keyed(ctx, 'ip', ctx.ip);
 
-  // A refund is sticky: LS has no "refunded" key status, so xpost's own record decides.
-  const refunded = existing?.status === 'refunded' && (checked.ok || checked.code === 'disabled' || checked.code === 'expired');
-  if (!checked.ok || refunded) {
-    const code = refunded ? 'refunded' : (checked as { code: 'invalid_credentials' | 'expired' | 'disabled' | 'not_configured' }).code;
+  // Refunds are sticky: LS has no "refunded" key status, so xpost's own records decide. A refund can arrive before
+  // anyone signs in (refunded_orders) or after (licences.status). Only revealed with the right key and email.
+  const refunded = (existing?.status === 'refunded' || orderRefunded) && (checked.ok || checked.code === 'disabled' || checked.code === 'expired');
+  // A deleted account (M9 "delete my data") cannot sign in again; same generic answer as a wrong email.
+  const deleted = checked.ok && !refunded && knownUser?.deleted_at != null;
+  if (!checked.ok || refunded || deleted) {
+    const code: SignInFailure | 'refunded' = refunded ? 'refunded' : deleted ? 'invalid_credentials' : (checked as { code: SignInFailure }).code;
     const stmts = [
       db.prepare(`INSERT INTO auth_attempts (key, window_start, count) VALUES (?1, ?2, 1)
         ON CONFLICT (key) DO UPDATE SET count = CASE WHEN window_start <= ?3 THEN 1 ELSE count + 1 END,
                                         window_start = CASE WHEN window_start <= ?3 THEN ?2 ELSE window_start END`)
-        .bind(emailKey, now, now - HOUR_MS),
+        .bind(attemptKey, now, now - HOUR_MS),
       db.prepare("INSERT INTO audit_log (user_id, at, kind, code, ip_hash) VALUES (NULL, ?, 'sign_in_failed', ?, ?)").bind(now, code, ipHash),
     ];
-    // The right key and email, but LS says expired/disabled: record it (and pause the owner's reminders).
-    if (existing && !refunded && (code === 'expired' || code === 'disabled') && existing.status !== code) {
-      stmts.push(db.prepare('UPDATE licences SET status = ?, status_reason = ?, last_validated_at = ?, updated_at = ? WHERE id = ?').bind(code, code, now, now, existing.id));
+    // The right key and email, but LS (or a refund) says it's blocked: record it and pause the owner's reminders.
+    const record = refunded ? 'refunded' : code === 'expired' || code === 'disabled' ? code : null;
+    if (existing && record && existing.status !== record) {
+      stmts.push(db.prepare('UPDATE licences SET status = ?, status_reason = ?, last_validated_at = ?, updated_at = ? WHERE id = ?').bind(record, record, now, now, existing.id));
       stmts.push(...syncPauseStatements(db, existing.user_id, now));
     }
     await db.batch(stmts);
@@ -180,19 +195,23 @@ export async function handleSignIn(ctx: Ctx, req: Request, url: URL): Promise<Re
 
   const v = checked.licence;
   const next = deriveStatus(existing, { status: v.lsKeyStatus, expiresAt: v.expiresAt }, now);
-  const user = await db.prepare(
-    `INSERT INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT (email) DO UPDATE SET updated_at = excluded.updated_at RETURNING id`,
-  ).bind(randomId(), email, now, now).first<{ id: string }>();
-  if (!user) return fail('server_error');
-
+  // Everything below runs in ONE batch (one transaction): user, licence, sessions and audit rows appear together or
+  // not at all. A concurrent first sign-in with the same email makes the batch fail (foreign key); the user retries.
+  const userId = knownUser?.id ?? randomId();
   const licenceId = existing?.id ?? randomId();
+  const previousOwner = existing && existing.user_id !== userId ? existing.user_id : null;
   const sessionId = randomId();
   const token = randomToken();
   const ttlMs = cfg.SESSION_TTL_DAYS * DAY_MS;
   const keep = cfg.MAX_WEB_SESSIONS - 1; // live web sessions kept besides the new one
-  const L = `(SELECT id FROM licences WHERE ls_license_key_hash = ?)`;
+  const L = `(SELECT id FROM licences WHERE ls_license_key_hash = ?2)`;
+  // Re-signing in on this browser replaces its current session instead of using another slot.
+  const oldToken = readCookie(req, COOKIE_NAME);
+  const oldTokenHash = oldToken && /^[A-Za-z0-9_-]{43}$/.test(oldToken) ? await sha256Hex(oldToken) : null;
   const stmts: D1PreparedStatement[] = [
+    knownUser
+      ? db.prepare('UPDATE users SET updated_at = ? WHERE id = ? AND deleted_at IS NULL').bind(now, userId)
+      : db.prepare('INSERT INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)').bind(userId, email, now, now),
     db.prepare(
       `INSERT INTO licences (id, user_id, ls_license_key_hash, key_last4, ls_license_key_id, ls_store_id, ls_product_id, ls_variant_id,
          ls_order_id, ls_customer_email, ls_key_status, status, status_reason, expires_at, activation_limit, last_validated_at, created_at, updated_at)
@@ -203,25 +222,32 @@ export async function handleSignIn(ctx: Ctx, req: Request, url: URL): Promise<Re
          ls_key_status = excluded.ls_key_status, status = excluded.status, status_reason = excluded.status_reason,
          expires_at = excluded.expires_at, activation_limit = excluded.activation_limit,
          last_validated_at = excluded.last_validated_at, updated_at = excluded.updated_at`,
-    ).bind(licenceId, user.id, keyHash, keyLast4(licenceKey), v.lsKeyId, v.storeId, v.productId, v.variantId, v.orderId,
+    ).bind(licenceId, userId, keyHash, keyLast4(licenceKey), v.lsKeyId, v.storeId, v.productId, v.variantId, v.orderId,
       v.customerEmail, v.lsKeyStatus, next.status, next.reason, v.expiresAt, v.activationLimit, now),
     // The licence's customer email changed in LS: sessions of the previous owner end.
     db.prepare(`UPDATE sessions SET revoked_at = ?1, revoked_reason = 'licence_moved'
-      WHERE licence_id = ${L.replace('?', '?2')} AND user_id <> ?3 AND revoked_at IS NULL`).bind(now, keyHash, user.id),
+      WHERE licence_id = ${L} AND user_id <> ?3 AND revoked_at IS NULL`).bind(now, keyHash, userId),
+  ];
+  if (oldTokenHash) {
+    stmts.push(db.prepare("UPDATE sessions SET revoked_at = ?, revoked_reason = 'sign_out' WHERE token_hash = ? AND revoked_at IS NULL").bind(now, oldTokenHash));
+  }
+  stmts.push(
     // Session limit: keep the newest MAX_WEB_SESSIONS-1 live web sessions of this licence, revoke the rest.
     db.prepare(`UPDATE sessions SET revoked_at = ?1, revoked_reason = 'session_limit' WHERE id IN (
-        SELECT id FROM sessions WHERE licence_id = ${L.replace('?', '?2')} AND kind = 'web' AND revoked_at IS NULL AND expires_at > ?1
+        SELECT id FROM sessions WHERE licence_id = ${L} AND kind = 'web' AND revoked_at IS NULL AND expires_at > ?1
         ORDER BY created_at DESC, id LIMIT -1 OFFSET ?3)`).bind(now, keyHash, keep),
     db.prepare(`INSERT INTO audit_log (user_id, at, kind, code, ip_hash)
       SELECT user_id, ?1, 'session_evicted', 'session_limit', ?3 FROM sessions
-      WHERE licence_id = ${L.replace('?', '?2')} AND revoked_at = ?1 AND revoked_reason = 'session_limit'`).bind(now, keyHash, ipHash),
+      WHERE licence_id = ${L} AND revoked_at = ?1 AND revoked_reason = 'session_limit'`).bind(now, keyHash, ipHash),
     db.prepare(`INSERT INTO sessions (id, token_hash, user_id, licence_id, kind, user_agent, created_at, last_seen_at, expires_at)
-      VALUES (?1, ?2, ?3, ${L.replace('?', '?4')}, 'web', ?5, ?6, ?6, ?7)`)
-      .bind(sessionId, await sha256Hex(token), user.id, keyHash, shortUserAgent(req.headers.get('user-agent')), now, now + ttlMs),
-    db.prepare("INSERT INTO audit_log (user_id, at, kind, code, ip_hash) VALUES (?, ?, 'sign_in', NULL, ?)").bind(user.id, now, ipHash),
-    db.prepare('DELETE FROM auth_attempts WHERE key = ?').bind(emailKey),
-    ...syncPauseStatements(db, user.id, now),
-  ];
+      VALUES (?1, ?3, ?4, ${L}, 'web', ?5, ?6, ?6, ?7)`)
+      .bind(sessionId, keyHash, await sha256Hex(token), userId, shortUserAgent(req.headers.get('user-agent')), now, now + ttlMs),
+    db.prepare("INSERT INTO audit_log (user_id, at, kind, code, ip_hash) VALUES (?, ?, 'sign_in', NULL, ?)").bind(userId, now, ipHash),
+    db.prepare('DELETE FROM auth_attempts WHERE key = ?').bind(attemptKey),
+    ...syncPauseStatements(db, userId, now),
+    // The previous owner may have lost their only usable licence.
+    ...(previousOwner ? syncPauseStatements(db, previousOwner, now) : []),
+  );
   await db.batch(stmts);
   return json({ ok: true, csrfToken: await csrfToken(cfg.SESSION_SECRET!, sessionId) }, 200, {
     'Set-Cookie': sessionCookie(token, Math.floor(ttlMs / 1000)),

@@ -34,7 +34,7 @@ export async function startDb(): Promise<{ db: D1Database; dispose: () => Promis
 }
 
 /** Child tables first (foreign keys are always on in D1). */
-const TABLES = ['audit_log', 'auth_attempts', 'webhook_events', 'push_subscriptions', 'reminders', 'target_events', 'post_targets',
+const TABLES = ['audit_log', 'auth_attempts', 'webhook_events', 'refunded_orders', 'ls_subscriptions', 'ls_object_versions', 'push_subscriptions', 'reminders', 'target_events', 'post_targets',
   'post_media', 'posts', 'media', 'sessions', 'devices', 'licences', 'users'];
 export async function resetDb(db: D1Database) {
   await db.batch(TABLES.map((t) => db.prepare(`DELETE FROM ${t}`)));
@@ -94,4 +94,12 @@ export async function lsSign(body: string, secret = WEBHOOK_SECRET): Promise<str
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return [...new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(body)))].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Runs the Worker's cron handler and waits for everything it scheduled with waitUntil. */
+export async function runCron(h: { app: ReturnType<typeof createApp>; env: Env; clock: { now: number } }) {
+  const waits: Promise<unknown>[] = [];
+  await h.app.scheduled({ cron: '*/15 * * * *', scheduledTime: h.clock.now, noRetry() {} } as ScheduledController, h.env,
+    { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException() {} } as unknown as ExecutionContext);
+  await Promise.all(waits);
 }

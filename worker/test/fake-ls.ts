@@ -1,7 +1,8 @@
 /**
  * Forked from XLISTit website/test/fake-ls.ts. In-memory imitation of Lemon Squeezy's License API plus the bits of
  * the main API xpost uses. Response shapes follow docs.lemonsqueezy.com.
- * xpost changes: per-key customer email (meta.customer_email), GET /v1/license-keys/:id, a "down" switch, no
+ * xpost changes: per-key customer email (meta.customer_email), GET /v1/license-keys/:id, GET /v1/subscriptions/:id,
+ * per-key and disable failure switches, a "down" switch, no
  * HTTP server, defaults are xpost's test store/product (1/10); XLISTit's product in the same store is 20.
  */
 export interface FakeKey {
@@ -16,6 +17,12 @@ export class FakeLemonSqueezy {
   apiKey = 'test-ls-api-key';
   /** When set, every request fails with this HTTP status (e.g. 503). */
   down: number | null = null;
+  /** Licence key ID -> HTTP status the main API returns for that one key (e.g. 422). */
+  keyErrors = new Map<number, number>();
+  /** When set, PATCH (disable) requests fail with this status. */
+  disableFails: number | null = null;
+  /** Main API subscriptions: id -> attributes. */
+  subscriptions = new Map<number, { store_id: number; order_id: number; product_id: number; variant_id: number; status: string }>();
   private nextId = 1;
 
   addKey(p: Partial<FakeKey> & { key: string }): FakeKey {
@@ -66,7 +73,14 @@ export class FakeLemonSqueezy {
 
     // Main API
     if (new Headers(init?.headers).get('authorization') !== `Bearer ${this.apiKey}`) return j({ errors: [{ status: '401' }] }, 401);
+    const subM = /^\/v1\/subscriptions\/(\d+)$/.exec(url.pathname);
+    if (subM) {
+      const sub = this.subscriptions.get(Number(subM[1]));
+      return sub ? j({ data: { type: 'subscriptions', id: subM[1], attributes: sub } }) : j({ errors: [{ status: '404' }] }, 404);
+    }
     const one = /^\/v1\/license-keys\/(\d+)$/.exec(url.pathname);
+    if (one && this.keyErrors.has(Number(one[1]))) return j({ errors: [{ status: String(this.keyErrors.get(Number(one[1]))) }] }, this.keyErrors.get(Number(one[1])));
+    if (one && method === 'PATCH' && this.disableFails) return j({ errors: [{ status: String(this.disableFails) }] }, this.disableFails);
     if (one) {
       const k = [...this.keys.values()].find((x) => x.id === Number(one[1]));
       if (!k) return j({ errors: [{ status: '404' }] }, 404);

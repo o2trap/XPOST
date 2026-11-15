@@ -71,4 +71,5 @@ LS_VARIANT_IDS = ""
 # REVALIDATE_HOURS = "24"
 # REVALIDATE_BATCH = "15"
 # DESKTOP_OFFLINE_GRACE_DAYS = "7"
+# ALLOW_TEST_WEBHOOKS = "false"   # "true" only on a staging copy: processes Lemon Squeezy test-mode webhooks
 # Secrets (never here): LS_API_KEY, LS_WEBHOOK_SECRET, SESSION_SECRET. See .dev.vars.example.

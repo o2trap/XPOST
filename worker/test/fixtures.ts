@@ -4,15 +4,15 @@ import { T0 } from './harness';
 let n = 0;
 const id = () => (++n).toString(16).padStart(32, '0');
 
-export async function seedUser(db: D1Database, o: { email?: string; lsKeyId?: number; orderId?: number; productId?: number; status?: string; reason?: string | null; validatedAt?: number; expiresAt?: number | null } = {}) {
+export async function seedUser(db: D1Database, o: { email?: string; lsKeyId?: number; orderId?: number; productId?: number; variantId?: number; status?: string; reason?: string | null; validatedAt?: number; expiresAt?: number | null } = {}) {
   const userId = id(), licenceId = id(), postId = id(), t1 = id(), t2 = id(), t3 = id();
   const now = T0;
   await db.batch([
     db.prepare('INSERT INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)').bind(userId, o.email ?? `u${n}@example.com`, now, now),
     db.prepare(`INSERT INTO licences (id, user_id, ls_license_key_hash, key_last4, ls_license_key_id, ls_store_id, ls_product_id, ls_variant_id,
       ls_order_id, ls_customer_email, status, status_reason, expires_at, last_validated_at, created_at, updated_at)
-      VALUES (?, ?, ?, 'AB12', ?, 1, ?, 100, ?, 'x@example.com', ?, ?, ?, ?, ?, ?)`)
-      .bind(licenceId, userId, id() + id(), o.lsKeyId ?? n, o.productId ?? 10, o.orderId ?? 500, o.status ?? 'active', o.reason ?? null, o.expiresAt ?? null, o.validatedAt ?? now, now, now),
+      VALUES (?, ?, ?, 'AB12', ?, 1, ?, ?, ?, 'x@example.com', ?, ?, ?, ?, ?, ?)`)
+      .bind(licenceId, userId, id() + id(), o.lsKeyId ?? n, o.productId ?? 10, o.variantId ?? 100, o.orderId ?? 500, o.status ?? 'active', o.reason ?? null, o.expiresAt ?? null, o.validatedAt ?? now, now, now),
     db.prepare("INSERT INTO posts (id, user_id, caption, status, created_at, updated_at) VALUES (?, ?, 'secret caption', 'scheduled', ?, ?)").bind(postId, userId, now, now),
     db.prepare("INSERT INTO post_targets (id, post_id, user_id, platform, mode, status, scheduled_at, created_at, updated_at) VALUES (?, ?, ?, 'x', 'intent', 'scheduled', ?, ?, ?)").bind(t1, postId, userId, now + 3_600_000, now, now),
     db.prepare("INSERT INTO post_targets (id, post_id, user_id, platform, mode, status, scheduled_at, created_at, updated_at) VALUES (?, ?, ?, 'tiktok', 'handoff', 'scheduled', ?, ?, ?)").bind(t2, postId, userId, now + 3_600_000, now, now),

@@ -6,8 +6,16 @@
  *    cannot run against a database that does not exist, so it is created here (location hint D1_LOCATION,
  *    default weur). `wrangler deploy` then finds it by name (automatic provisioning connects to an existing
  *    database with the configured database_name), so no database_id is needed in wrangler.toml.
- * 2. Apply pending migrations (worker/migrations) BEFORE the new code goes live. Wrangler takes a backup first and
- *    rolls back a migration that fails; a failure stops the deploy, so new code never runs on an old schema.
+ * 2. Apply pending migrations (worker/migrations) BEFORE the new code goes live. No database_id is needed:
+ *    wrangler resolves the remote database by its database_name through the Cloudflare API (checked in wrangler
+ *    4.162 source: `d1 migrations apply --remote` -> executeRemotely -> getDatabaseByNameOrBinding, which looks up
+ *    /accounts/:id/d1/database/<name> when the config has a name but no id).
+ *    Each migration file is sent together with its d1_migrations record, so a migration is only recorded once all
+ *    of it has run, and a failure stops the deploy (new code never runs on an old schema). Remote D1 does NOT
+ *    promise to undo the statements of a migration that failed part-way: recover with D1 Time Travel
+ *    (`npx wrangler d1 time-travel restore xpost --timestamp=<before the deploy>`; 7 days on the Free plan, 30 on Paid), fix the
+ *    migration and push again. So write migrations to be safe to re-run (CREATE ... IF NOT EXISTS; one ALTER per
+ *    file at most, as the file's only statement) and backwards compatible with the previous Worker version.
  * 3. `wrangler deploy`.
  *
  * Needs the Workers Builds API token to have "D1: Edit" (the token Cloudflare creates by default does not).

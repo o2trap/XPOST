@@ -33,6 +33,8 @@ const Env = z.object({
   /** Keys the CSRF tokens and the hashes used for rate-limit keys and audit IPs. At least 32 characters. */
   SESSION_SECRET: z.preprocess(blankToUndefined, z.string().min(32).optional()),
 
+  /** "true" to process Lemon Squeezy test-mode webhooks (staging only). Default: test-mode events are ignored. */
+  ALLOW_TEST_WEBHOOKS: z.preprocess(blankToUndefined, z.enum(['true', 'false']).optional()).transform((v) => v === 'true'),
   MAX_WEB_SESSIONS: int(3, 1, 50),
   MAX_DESKTOP_DEVICES: int(2, 1, 50),
   SESSION_TTL_DAYS: int(30, 1, 365),

@@ -291,21 +291,71 @@ describe('sign-in rate limits', () => {
     expect(codes[5]).toBe(429);
   });
 
-  it('strict D1 counter: 10 failed sign-ins per email per hour, cleared by success', async () => {
+  it('strict D1 counter: 10 failed sign-ins per email per address per hour, cleared by success', async () => {
     const h = harness(db);
     setupKey(h);
+    const ip = '198.51.100.50';
     for (let i = 0; i < 10; i++) {
       h.clock.now += 61_000; // past the per-minute limits
-      expect((await h.signIn('buyer@example.com', 'WRONG-KEY-000', { ip: `198.51.100.${50 + i}` })).res.status).toBe(401);
+      expect((await h.signIn('buyer@example.com', 'WRONG-KEY-000', { ip })).res.status).toBe(401);
     }
     h.clock.now += 61_000;
-    const blocked = await h.signIn('buyer@example.com', KEY, { ip: '198.51.100.99' });
+    const blocked = await h.signIn('buyer@example.com', KEY, { ip });
     expect(blocked.res.status).toBe(429);
     expect(blocked.res.headers.get('retry-after')).toBe('3600');
     const row = await db.prepare('SELECT key FROM auth_attempts').first<{ key: string }>();
     expect(row!.key).not.toContain('buyer'); // keyed by an HMAC, not the email
+    // someone guessing from another network cannot lock the real customer out
+    expect((await h.signIn('buyer@example.com', KEY, { ip: '192.0.2.44' })).res.status).toBe(200);
     h.clock.now += 3_600_000;
-    expect((await h.signIn('buyer@example.com', KEY, { ip: '198.51.100.98' })).res.status).toBe(200);
+    expect((await h.signIn('buyer@example.com', KEY, { ip })).res.status).toBe(200);
     expect((await db.prepare('SELECT count(*) n FROM auth_attempts').first<{ n: number }>())!.n).toBe(0);
+  });
+});
+
+describe('sign-in edge cases', () => {
+  it('signing in again on the same browser replaces its session instead of using another slot', async () => {
+    const h = harness(db);
+    setupKey(h);
+    const first = await h.signIn();
+    const second = await h.signIn('buyer@example.com', KEY, { cookie: first.cookie });
+    expect((await me(h, first.cookie)).status).toBe(401);
+    const body = (await (await me(h, second.cookie)).json()) as any;
+    expect(body.sessions).toHaveLength(1);
+  });
+
+  it('a deleted account cannot sign in again (generic answer, nothing created)', async () => {
+    const h = harness(db);
+    setupKey(h);
+    await h.signIn();
+    await db.prepare('UPDATE users SET deleted_at = 1').run();
+    const s = await h.signIn();
+    expect(s.res.status).toBe(401);
+    expect(s.body.code).toBe('invalid_credentials');
+    expect((await db.prepare('SELECT count(*) n FROM sessions WHERE revoked_at IS NULL').first<{ n: number }>())!.n).toBe(1);
+  });
+
+  it("when a licence's customer email changes, it moves: the old owner's sessions end and their scheduled work pauses", async () => {
+    const h = harness(db);
+    const k = setupKey(h, { key: KEY, customerEmail: 'old@example.com' });
+    const old = await h.signIn('old@example.com', KEY);
+    const oldUser = (await db.prepare("SELECT id FROM users WHERE email = 'old@example.com'").first<{ id: string }>())!.id;
+    const now = h.clock.now;
+    await db.batch([
+      db.prepare("INSERT INTO posts (id, user_id, status, created_at, updated_at) VALUES ('p1', ?, 'scheduled', ?, ?)").bind(oldUser, now, now),
+      db.prepare("INSERT INTO post_targets (id, post_id, user_id, platform, mode, status, scheduled_at, created_at, updated_at) VALUES ('t1', 'p1', ?, 'x', 'intent', 'scheduled', ?, ?, ?)").bind(oldUser, now + 1, now, now),
+    ]);
+    k.customerEmail = 'new@example.com';
+    expect((await h.signIn('new@example.com', KEY)).res.status).toBe(200);
+    expect((await me(h, old.cookie)).status).toBe(401);
+    expect((await db.prepare("SELECT status FROM post_targets WHERE id = 't1'").first<{ status: string }>())!.status).toBe('paused');
+  });
+
+  it('sign-in, user and session rows are written together (one batch)', async () => {
+    const h = harness(db);
+    setupKey(h);
+    await h.signIn();
+    const counts = await db.batch(['users', 'licences', 'sessions'].map((t) => db.prepare(`SELECT count(*) n FROM ${t}`)));
+    expect(counts.map((c) => (c.results[0] as { n: number }).n)).toEqual([1, 1, 1]);
   });
 });

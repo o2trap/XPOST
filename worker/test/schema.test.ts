@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startDb } from './harness';
+import { splitSql, startDb } from './harness';
+
+const files = import.meta.glob('../migrations/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
 let db: D1Database, dispose: () => Promise<void>;
 beforeAll(async () => ({ db, dispose } = await startDb()));
@@ -42,5 +44,20 @@ describe('schema v1', () => {
     expect(rows.map((r) => r.key)).toEqual(['global', 'platform:facebook', 'platform:instagram', 'platform:snapchat', 'platform:tiktok', 'platform:x', 'platform:youtube']);
     for (const r of rows) expect(() => JSON.parse(r.value)).not.toThrow();
     expect(JSON.parse(rows.find((r) => r.key === 'platform:x')!.value)).toMatchObject({ default_mode_web: 'intent', assisted_enabled: true, selector_config_version: 0 });
+  });
+
+  it('migrations after 0001 are safe to re-run (only CREATE ... IF NOT EXISTS, or a lone ALTER)', async () => {
+    for (const [file, sql] of Object.entries(files).sort()) {
+      if (file.endsWith('0001_init.sql')) continue;
+      const stmts = splitSql(sql);
+      const createsOnly = stmts.every((st) => /^CREATE (TABLE|INDEX|UNIQUE INDEX) IF NOT EXISTS /i.test(st));
+      expect(createsOnly || (stmts.length === 1 && /^ALTER TABLE/i.test(stmts[0]!)), file).toBe(true);
+      if (createsOnly) await db.batch(stmts.map((st) => db.prepare(st))); // runs again without error
+    }
+  });
+
+  it('has the 0002 tables', async () => {
+    const t = await tables();
+    for (const name of ['refunded_orders', 'ls_subscriptions', 'ls_object_versions']) expect(t).toContain(name);
   });
 });

@@ -28,6 +28,10 @@ describe('licence gate', () => {
   it('deriveStatus keeps refunds and pauses sticky', () => {
     expect(deriveStatus({ status: 'refunded', status_reason: 'refunded' }, { status: 'active', expiresAt: null }, 0).status).toBe('refunded');
     expect(deriveStatus({ status: 'inactive', status_reason: 'subscription_paused' }, { status: 'active', expiresAt: null }, 0).status).toBe('inactive');
+    for (const reason of ['unpaid', 'payment_refunded']) {
+      expect(deriveStatus({ status: 'inactive', status_reason: reason }, { status: 'active', expiresAt: null }, 0)).toEqual({ status: 'inactive', reason });
+      expect(licenceBlock(row({ status: 'inactive', status_reason: reason }), 0)!.message).toMatch(/paused/);
+    }
     expect(deriveStatus({ status: 'expired', status_reason: 'expired' }, { status: 'active', expiresAt: null }, 0)).toEqual({ status: 'active', reason: null });
     expect(deriveStatus(null, { status: 'inactive', expiresAt: null }, 0).status).toBe('active'); // LS "inactive" = valid, never activated
     expect(deriveStatus(null, { status: 'active', disabled: true, expiresAt: null }, 0).status).toBe('disabled');

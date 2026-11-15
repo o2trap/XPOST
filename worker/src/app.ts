@@ -13,6 +13,7 @@ export interface Env {
   LS_API_KEY?: string;
   LS_WEBHOOK_SECRET?: string;
   SESSION_SECRET?: string;
+  ALLOW_TEST_WEBHOOKS?: string;
   MAX_WEB_SESSIONS?: string;
   MAX_DESKTOP_DEVICES?: string;
   SESSION_TTL_DAYS?: string;

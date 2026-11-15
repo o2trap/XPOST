@@ -1,11 +1,19 @@
 /**
  * Lemon Squeezy webhook: POST /api/webhooks/lemonsqueezy.
  * verifyWebhookSignature is forked from XLISTit website/lib/webhook.ts (hex HMAC-SHA256 of the raw body, checked
- * with Web Crypto's constant-time verify). xpost changes (Step 0 "fix, don't copy" list):
+ * with Web Crypto's constant-time verify), and so is the refund handling (a full refund disables the order's licence
+ * keys in Lemon Squeezy). xpost changes (Step 0 "fix, don't copy" list):
  * - the store check is mandatory, and the product (and variant, if configured) must be xpost's: the store is shared
  *   with XLISTit, whose events are acknowledged and ignored;
- * - idempotent: each delivery is recorded in webhook_events (key = SHA-256 of the raw body; LS sends no event ID);
- * - more events than order_refunded: subscription expiry, pause/resume, payment failure/recovery, licence key updates;
+ * - test-mode events are ignored unless ALLOW_TEST_WEBHOOKS=true;
+ * - each delivery is claimed atomically in webhook_events (key = SHA-256 of the raw body; LS sends no event ID) and
+ *   marked processed only after every side effect, including the LS key disable, has succeeded; otherwise the
+ *   response is 500 and LS's retry runs it again (every step is idempotent);
+ * - out-of-order deliveries are ignored when the object's updated_at is older than one already applied;
+ * - full refunds are recorded per order (refunded_orders) even when nobody has signed in with that key yet, so a
+ *   later sign-in is refused;
+ * - subscription events map attributes.status; subscription invoice events (subscription_payment_*), which carry
+ *   only subscription_id, are mapped to the order through ls_subscriptions (or one LS API lookup);
  * - D1 is the source of truth: events change licences.status and pause/resume the owner's scheduled targets and
  *   reminders (pause.ts). Sessions are kept so the user can read why in the app.
  */
@@ -14,7 +22,7 @@ import type { Ctx } from './app';
 import { licenceConfigured } from './config';
 import { sha256Hex } from './crypto';
 import { json } from './http';
-import { deriveStatus, isXpostProduct, parseTime } from './licence';
+import { SUBSCRIPTION_BLOCK_REASONS, deriveStatus, isXpostProduct, parseTime } from './licence';
 import { logError, logInfo } from './log';
 import { syncPauseStatements } from './pause';
 
@@ -28,14 +36,20 @@ export async function verifyWebhookSignature(rawBody: string, signature: string 
 }
 
 interface Attrs {
-  store_id?: number; product_id?: number; variant_id?: number; order_id?: number; status?: string; disabled?: boolean;
-  expires_at?: string | null; first_order_item?: { product_id?: number; variant_id?: number };
+  store_id?: number; product_id?: number; variant_id?: number; order_id?: number; subscription_id?: number; status?: string;
+  disabled?: boolean | number; expires_at?: string | null; updated_at?: string; test_mode?: boolean; refunded?: boolean;
+  total?: number; refunded_amount?: number; first_order_item?: { product_id?: number; variant_id?: number };
 }
 export interface WebhookEvent { meta?: { event_name?: string; test_mode?: boolean }; data?: { id?: string; type?: string; attributes?: Attrs } }
 
 interface LicenceRef { id: string; user_id: string; status: LicenceStatus; status_reason: string | null; expires_at: number | null }
+type Next = { status: LicenceStatus; reason: string | null; expiresAt?: number | null; lsKeyStatus?: string } | null;
+
+interface Plan { result: string; statements: D1PreparedStatement[]; disableOrderId?: number }
 
 const MAX_BODY = 256 * 1024;
+/** A claimed delivery that never finished (Worker crashed) can be claimed again after this long. */
+export const CLAIM_LEASE_MS = 60_000;
 
 export async function handleWebhook(ctx: Ctx, req: Request): Promise<Response> {
   const { cfg, db, now } = ctx;
@@ -47,112 +61,199 @@ export async function handleWebhook(ctx: Ctx, req: Request): Promise<Response> {
   let event: WebhookEvent;
   try { event = JSON.parse(raw) as WebhookEvent; } catch { return json({ ok: false }, 400); }
   const name = String(event.meta?.event_name ?? req.headers.get('x-event-name') ?? 'unknown').slice(0, 60);
-
   const eventKey = await sha256Hex(raw);
-  const seen = await db.prepare('SELECT processed_at FROM webhook_events WHERE event_key = ?').bind(eventKey).first<{ processed_at: number | null }>();
-  if (seen?.processed_at) return json({ ok: true, result: 'duplicate' });
+
+  // Atomic claim: a new delivery, or one whose earlier attempt failed or was abandoned (lease expired).
+  const claimed = await db.prepare(
+    `INSERT INTO webhook_events (event_key, name, received_at) VALUES (?1, ?2, ?3)
+     ON CONFLICT (event_key) DO UPDATE SET received_at = excluded.received_at
+       WHERE webhook_events.processed_at IS NULL AND webhook_events.received_at < ?4
+     RETURNING event_key`,
+  ).bind(eventKey, name, now, now - CLAIM_LEASE_MS).first();
+  if (!claimed) {
+    const row = await db.prepare('SELECT processed_at FROM webhook_events WHERE event_key = ?').bind(eventKey).first<{ processed_at: number | null }>();
+    if (row?.processed_at) return json({ ok: true, result: 'duplicate' });
+    return json({ ok: false, error: 'in progress' }, 409); // another request is handling it; LS retries later
+  }
 
   try {
-    const { result, statements } = await planEvent(ctx, event, name);
-    await db.batch([
-      db.prepare('INSERT OR IGNORE INTO webhook_events (event_key, name, received_at) VALUES (?, ?, ?)').bind(eventKey, name, now),
-      ...statements,
-      db.prepare('UPDATE webhook_events SET processed_at = ?, result = ? WHERE event_key = ?').bind(now, result.slice(0, 200), eventKey),
-    ]);
-    // XLISTit behaviour, kept: a full refund also disables the key in Lemon Squeezy (needs LS_API_KEY). Done after
-    // the D1 update; if it fails, LS retries and the D1 part is a no-op the second time.
-    if (name === 'order_refunded' && result.startsWith('refunded') && ctx.ls.hasApiKey && event.data?.id) {
-      const keys = await ctx.ls.licenceKeysForOrder(Number(event.data.id));
-      for (const k of keys) if (k.attributes.status !== 'disabled') await ctx.ls.disableLicenceKey(k.id);
-    }
-    logInfo(`webhook ${name}: ${result}`);
-    return json({ ok: true, result });
+    const testMode = event.meta?.test_mode === true || event.data?.attributes?.test_mode === true;
+    const plan: Plan = testMode && cfg.ALLOW_TEST_WEBHOOKS !== true ? { result: 'ignored: test mode', statements: [] } : await planEvent(ctx, event, name);
+    if (plan.statements.length) await db.batch(plan.statements);
+    if (plan.disableOrderId !== undefined) await disableRefundedOrder(ctx, plan.disableOrderId);
+    await db.prepare('UPDATE webhook_events SET processed_at = ?, result = ? WHERE event_key = ?').bind(now, plan.result.slice(0, 200), eventKey).run();
+    logInfo(`webhook ${name}: ${plan.result}`);
+    return json({ ok: true, result: plan.result });
   } catch (e) {
     logError('webhook failed', name, e);
-    // Record the delivery as received-but-unprocessed so a retry reprocesses it; non-2xx makes LS retry.
-    await db.prepare('INSERT OR IGNORE INTO webhook_events (event_key, name, received_at) VALUES (?, ?, ?)').bind(eventKey, name, now).run().catch(() => undefined);
+    // Release the claim so LS's retry (non-2xx) can run it again straight away.
+    await db.prepare('UPDATE webhook_events SET received_at = 0 WHERE event_key = ? AND processed_at IS NULL').bind(eventKey).run().catch(() => undefined);
     return json({ ok: false }, 500);
   }
 }
 
-const productOf = (a: Attrs) => ({ productId: a.product_id ?? a.first_order_item?.product_id, variantId: a.variant_id ?? a.first_order_item?.variant_id });
+/**
+ * XLISTit behaviour, kept: a fully refunded order's licence keys are disabled in Lemon Squeezy (needs LS_API_KEY),
+ * so they also stop working for anything else that checks them. Throws on failure so the webhook is retried; the
+ * cron also retries orders whose ls_disabled_at is still null.
+ */
+export async function disableRefundedOrder(ctx: Ctx, orderId: number): Promise<boolean> {
+  const { db, now, ls } = ctx;
+  if (!ls.hasApiKey) { logError('refund: LS_API_KEY not set, licence keys not disabled in Lemon Squeezy'); return false; }
+  try {
+    const keys = await ls.licenceKeysForOrder(orderId);
+    for (const k of keys) if (k.attributes.status !== 'disabled') await ls.disableLicenceKey(k.id);
+  } catch (e) {
+    await db.prepare('UPDATE refunded_orders SET disable_attempts = disable_attempts + 1 WHERE ls_order_id = ?').bind(orderId).run();
+    throw e;
+  }
+  await db.prepare('UPDATE refunded_orders SET ls_disabled_at = ? WHERE ls_order_id = ?').bind(now, orderId).run();
+  return true;
+}
 
-/** Works out what an event changes. Returns D1 statements to run in one batch with the idempotency record. */
-async function planEvent(ctx: Ctx, event: WebhookEvent, name: string): Promise<{ result: string; statements: D1PreparedStatement[] }> {
+/** What a subscription status means for a licence (null = leave it alone). Refunds and disabled keys always win. */
+export function fromSubscriptionStatus(r: LicenceRef, subStatus: string): Next {
+  if (r.status === 'refunded' || r.status === 'disabled') return null;
+  const subOwned = r.status === 'active' || (r.status === 'inactive' && SUBSCRIPTION_BLOCK_REASONS.has(r.status_reason ?? ''));
+  switch (subStatus) {
+    case 'expired': return { status: 'expired', reason: 'expired' };
+    case 'paused': return subOwned ? { status: 'inactive', reason: 'subscription_paused' } : null;
+    case 'unpaid': return subOwned ? { status: 'inactive', reason: 'unpaid' } : null;
+    case 'past_due': return subOwned ? { status: 'active', reason: 'payment_failed' } : null;
+    case 'cancelled': return subOwned ? { status: 'active', reason: 'cancelled' } : null;
+    case 'active':
+    case 'on_trial': return subOwned ? { status: 'active', reason: null } : null;
+    default: return null;
+  }
+}
+
+/** What a subscription invoice event means for a licence. */
+function fromInvoice(r: LicenceRef, name: string, a: Attrs): Next {
+  if (r.status === 'refunded' || r.status === 'disabled' || r.status === 'expired') return null;
+  switch (name) {
+    case 'subscription_payment_failed':
+      // LS retries for about two weeks; warn, don't block.
+      return r.status === 'active' ? { status: 'active', reason: 'payment_failed' } : null;
+    case 'subscription_payment_success':
+    case 'subscription_payment_recovered':
+      if (r.status === 'active' && r.status_reason === 'payment_failed') return { status: 'active', reason: null };
+      if (r.status === 'inactive' && (r.status_reason === 'unpaid' || r.status_reason === 'payment_refunded')) return { status: 'active', reason: null };
+      return null;
+    case 'subscription_payment_refunded': {
+      // Only a full refund of the payment blocks (the period it paid for is no longer paid). A later successful
+      // payment clears it. Partial refunds are left alone.
+      const full = a.refunded === true && (a.refunded_amount ?? 0) >= (a.total ?? Infinity);
+      return full ? { status: 'inactive', reason: 'payment_refunded' } : null;
+    }
+    default:
+      return null;
+  }
+}
+
+/** Works out what an event changes. */
+async function planEvent(ctx: Ctx, event: WebhookEvent, name: string): Promise<Plan> {
   const { cfg, db, now } = ctx;
   const a = event.data?.attributes ?? {};
-  const none = (result: string) => ({ result, statements: [] });
-  if (a.store_id !== cfg.LS_STORE_ID) return none('ignored: other store');
-  const { productId, variantId } = productOf(a);
-  if (!isXpostProduct(cfg, a.store_id, productId, variantId)) return none('ignored: other product');
-
-  // Which licences the event is about: licence-key events by key ID, order and subscription events by order ID.
-  let refs: LicenceRef[];
-  const cols = 'id, user_id, status, status_reason, expires_at';
-  if (event.data?.type === 'license-keys') {
-    refs = (await db.prepare(`SELECT ${cols} FROM licences WHERE ls_license_key_id = ?`).bind(Number(event.data.id)).all<LicenceRef>()).results;
-  } else {
-    const orderId = event.data?.type === 'orders' ? Number(event.data.id) : a.order_id;
-    if (!orderId) return none(`ignored: ${name} without order`);
-    refs = (await db.prepare(`SELECT ${cols} FROM licences WHERE ls_order_id = ?`).bind(orderId).all<LicenceRef>()).results;
-  }
-  if (!refs.length) return none(`no licence: ${name}`);
-
-  const set = (r: LicenceRef, status: LicenceStatus, reason: string | null, extra: { expiresAt?: number | null; lsKeyStatus?: string } = {}) =>
-    db.prepare(`UPDATE licences SET status = ?, status_reason = ?, expires_at = ?, ls_key_status = COALESCE(?, ls_key_status), updated_at = ? WHERE id = ?`)
-      .bind(status, reason, extra.expiresAt === undefined ? r.expires_at : extra.expiresAt, extra.lsKeyStatus ?? null, now, r.id);
+  const type = event.data?.type;
+  const objectId = Number(event.data?.id);
+  const none = (result: string): Plan => ({ result, statements: [] });
+  if (a.store_id === undefined || a.store_id !== cfg.LS_STORE_ID) return none('ignored: other store');
 
   const statements: D1PreparedStatement[] = [];
-  let label = '';
-  const update = (r: LicenceRef, status: LicenceStatus, reason: string | null, extra?: { expiresAt?: number | null; lsKeyStatus?: string }) => {
-    statements.push(set(r, status, reason, extra));
+  // Stale-event guard: ignore an object older than one already applied.
+  const objectKey = `${type}:${objectId}`;
+  const updatedAt = parseTime(a.updated_at);
+  const stale = async () => {
+    if (updatedAt === null) return false;
+    const row = await db.prepare('SELECT updated_at FROM ls_object_versions WHERE object_key = ?').bind(objectKey).first<{ updated_at: number }>();
+    if (row && row.updated_at > updatedAt) return true;
+    statements.push(db.prepare(`INSERT INTO ls_object_versions (object_key, updated_at) VALUES (?, ?)
+      ON CONFLICT (object_key) DO UPDATE SET updated_at = max(updated_at, excluded.updated_at)`).bind(objectKey, updatedAt));
+    return false;
   };
-  for (const r of refs) {
-    switch (name) {
-      case 'order_refunded':
-        // Partial refunds are left alone (as in XLISTit).
-        if (a.status !== 'refunded') return none('ignored: partial refund');
-        update(r, 'refunded', 'refunded'); label = 'refunded';
-        break;
-      case 'subscription_expired':
-        if (r.status !== 'refunded') update(r, 'expired', 'expired'); label = 'expired';
-        break;
-      case 'subscription_paused':
-        if (r.status === 'active') update(r, 'inactive', 'subscription_paused'); label = 'paused';
-        break;
-      case 'subscription_resumed':
-      case 'subscription_unpaused':
-        if (r.status === 'inactive' && r.status_reason === 'subscription_paused') update(r, 'active', null);
-        else if (r.status === 'active' && r.status_reason === 'cancelled') update(r, 'active', null);
-        label = 'resumed';
-        break;
-      case 'subscription_cancelled':
-        // Still valid until the paid period ends; expiry arrives as subscription_expired (or the cron sees it).
-        if (r.status === 'active') update(r, 'active', 'cancelled'); label = 'cancelled';
-        break;
-      case 'subscription_payment_failed':
-        // LS retries for about two weeks; warn, don't block.
-        if (r.status === 'active') update(r, 'active', 'payment_failed'); label = 'payment failed';
-        break;
-      case 'subscription_payment_success':
-      case 'subscription_payment_recovered':
-        if (r.status === 'active' && r.status_reason === 'payment_failed') update(r, 'active', null); label = 'payment ok';
-        break;
-      case 'license_key_created':
-      case 'license_key_updated': {
-        const lsStatus = (a.status ?? 'active') as 'inactive' | 'active' | 'expired' | 'disabled';
-        const expiresAt = parseTime(a.expires_at);
-        const next = deriveStatus(r, { status: lsStatus, disabled: a.disabled, expiresAt }, now);
-        update(r, next.status, next.reason, { expiresAt, lsKeyStatus: lsStatus }); label = `key ${next.status}`;
-        break;
-      }
-      default:
-        return none(`ignored: ${name}`);
+  const licencesWhere = async (col: 'ls_order_id' | 'ls_license_key_id', value: number) =>
+    (await db.prepare(`SELECT id, user_id, status, status_reason, expires_at FROM licences WHERE ${col} = ?`).bind(value).all<LicenceRef>()).results;
+
+  let refs: LicenceRef[] = [];
+  let decide: (r: LicenceRef) => Next;
+  let disableOrderId: number | undefined;
+
+  switch (type) {
+    case 'orders': {
+      if (name !== 'order_refunded') return none(`ignored: ${name}`);
+      const item = a.first_order_item ?? {};
+      if (!isXpostProduct(cfg, a.store_id, item.product_id, item.variant_id)) return none('ignored: other product');
+      if (a.status !== 'refunded') return none('ignored: partial refund'); // as in XLISTit
+      statements.push(db.prepare(`INSERT INTO refunded_orders (ls_order_id, ls_store_id, ls_product_id, refunded_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT (ls_order_id) DO NOTHING`).bind(objectId, a.store_id, item.product_id!, now));
+      refs = await licencesWhere('ls_order_id', objectId);
+      decide = () => ({ status: 'refunded', reason: 'refunded' });
+      disableOrderId = objectId;
+      break;
     }
+    case 'subscriptions': {
+      if (!isXpostProduct(cfg, a.store_id, a.product_id, a.variant_id)) return none('ignored: other product');
+      if (await stale()) return none(`ignored: stale ${name}`);
+      if (!a.order_id) return none(`ignored: ${name} without order`);
+      statements.push(db.prepare(`INSERT INTO ls_subscriptions (ls_subscription_id, ls_order_id, ls_product_id, ls_variant_id, status, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT (ls_subscription_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at`)
+        .bind(objectId, a.order_id, a.product_id!, a.variant_id ?? null, a.status ?? null, now));
+      refs = await licencesWhere('ls_order_id', a.order_id);
+      const status = a.status ?? '';
+      decide = (r) => fromSubscriptionStatus(r, status);
+      break;
+    }
+    case 'subscription-invoices': {
+      if (!a.subscription_id) return none(`ignored: ${name} without subscription`);
+      // Invoices carry no product: the subscription must already be known as xpost's, or LS must say it is.
+      let orderId = (await db.prepare('SELECT ls_order_id FROM ls_subscriptions WHERE ls_subscription_id = ?').bind(a.subscription_id).first<{ ls_order_id: number }>())?.ls_order_id;
+      if (orderId === undefined) {
+        if (!ctx.ls.hasApiKey) return none('ignored: unknown subscription');
+        const sub = await ctx.ls.getSubscription(a.subscription_id);
+        if (!sub) return none('ignored: unknown subscription');
+        const sa = sub.attributes;
+        if (!isXpostProduct(cfg, sa.store_id, sa.product_id, sa.variant_id)) return none('ignored: other product');
+        orderId = sa.order_id;
+        statements.push(db.prepare(`INSERT INTO ls_subscriptions (ls_subscription_id, ls_order_id, ls_product_id, ls_variant_id, status, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (ls_subscription_id) DO NOTHING`).bind(a.subscription_id, orderId, sa.product_id, sa.variant_id, sa.status, now));
+      }
+      if (await stale()) return none(`ignored: stale ${name}`);
+      refs = await licencesWhere('ls_order_id', orderId);
+      decide = (r) => fromInvoice(r, name, a);
+      break;
+    }
+    case 'license-keys': {
+      // Licence key objects have no variant_id; the variant was checked at sign-in.
+      if (!isXpostProduct(cfg, a.store_id, a.product_id)) return none('ignored: other product');
+      if (await stale()) return none(`ignored: stale ${name}`);
+      refs = await licencesWhere('ls_license_key_id', objectId);
+      const lsStatus = (a.status ?? 'active') as 'inactive' | 'active' | 'expired' | 'disabled';
+      const expiresAt = parseTime(a.expires_at);
+      decide = (r) => ({ ...deriveStatus(r, { status: lsStatus, disabled: !!a.disabled, expiresAt }, now), expiresAt, lsKeyStatus: lsStatus });
+      break;
+    }
+    default:
+      return none(`ignored: ${name}`);
   }
-  if (!statements.length) return none(`unchanged: ${label}`);
-  for (const userId of new Set(refs.map((r) => r.user_id))) statements.push(...syncPauseStatements(db, userId, now));
-  statements.push(db.prepare(`INSERT INTO audit_log (user_id, at, kind, code) SELECT DISTINCT user_id, ?, 'licence_status', ? FROM licences WHERE id IN (${refs.map(() => '?').join(',')})`)
-    .bind(now, name, ...refs.map((r) => r.id)));
-  return { result: `${label} (${refs.length} licence${refs.length === 1 ? '' : 's'})`, statements };
+
+  const changedUsers = new Set<string>();
+  const changedIds: string[] = [];
+  for (const r of refs) {
+    const next = decide(r);
+    if (!next) continue;
+    const expiresAt = next.expiresAt === undefined ? r.expires_at : next.expiresAt;
+    if (next.status === r.status && next.reason === r.status_reason && expiresAt === r.expires_at && !next.lsKeyStatus) continue;
+    statements.push(db.prepare('UPDATE licences SET status = ?, status_reason = ?, expires_at = ?, ls_key_status = COALESCE(?, ls_key_status), updated_at = ? WHERE id = ?')
+      .bind(next.status, next.reason, expiresAt, next.lsKeyStatus ?? null, now, r.id));
+    changedUsers.add(r.user_id);
+    changedIds.push(r.id);
+  }
+  for (const u of changedUsers) statements.push(...syncPauseStatements(db, u, now));
+  if (changedIds.length) {
+    statements.push(db.prepare(`INSERT INTO audit_log (user_id, at, kind, code) SELECT DISTINCT user_id, ?, 'licence_status', ? FROM licences WHERE id IN (${changedIds.map(() => '?').join(',')})`)
+      .bind(now, name, ...changedIds));
+  }
+  const what = type === 'orders' ? 'refunded' : name;
+  const result = refs.length ? `${what}: ${changedIds.length} of ${refs.length} licence(s) changed` : `${what}: no licence yet`;
+  return { result, statements, ...(disableOrderId !== undefined ? { disableOrderId } : {}) };
 }

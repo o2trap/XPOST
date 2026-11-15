@@ -81,10 +81,12 @@ export function mapLsError(error: string | null): SignInFailure {
 
 /** Reasons that do not block posting; shown as a warning. */
 export const WARNING_REASONS = new Set(['payment_failed', 'cancelled']);
+/** 'inactive' reasons set by subscription events; they stay until a subscription event clears them. */
+export const SUBSCRIPTION_BLOCK_REASONS = new Set(['subscription_paused', 'unpaid', 'payment_refunded']);
 
 /**
  * xpost status from a fresh Lemon Squeezy reading. `refunded` is sticky (LS has no refunded key status), and a
- * subscription pause stays until LS sends subscription_resumed/unpaused.
+ * subscription block (paused, unpaid, refunded payment) stays until a subscription event clears it.
  */
 export function deriveStatus(
   current: { status: LicenceStatus; status_reason: string | null } | null,
@@ -94,7 +96,7 @@ export function deriveStatus(
   if (current?.status === 'refunded') return { status: 'refunded', reason: current.status_reason ?? 'refunded' };
   if (ls.status === 'disabled' || ls.disabled) return { status: 'disabled', reason: 'disabled' };
   if (ls.status === 'expired' || (ls.expiresAt !== null && ls.expiresAt <= now)) return { status: 'expired', reason: 'expired' };
-  if (current?.status === 'inactive' && current.status_reason === 'subscription_paused') return { status: 'inactive', reason: 'subscription_paused' };
+  if (current?.status === 'inactive' && SUBSCRIPTION_BLOCK_REASONS.has(current.status_reason ?? '')) return { status: 'inactive', reason: current.status_reason };
   return { status: 'active', reason: current && WARNING_REASONS.has(current.status_reason ?? '') ? current.status_reason : null };
 }
 

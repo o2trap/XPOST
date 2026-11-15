@@ -4,7 +4,7 @@
  * - Main API (/v1/license-keys...): needs LS_API_KEY, server-side only.
  * xpost changes: meta includes customer_email (used to match the sign-in email); getLicenceKey() for cron
  * re-validation (xpost stores only a hash of the key, so it cannot call the License API later);
- * catalogue helper and instance listing dropped (M7 adds instances back for desktop devices).
+ * getSubscription() for invoice events; HTTP status on errors; catalogue helper and instance listing dropped (M7 adds instances back for desktop devices).
  */
 export interface LsLicenceKey { id: number; status: 'inactive' | 'active' | 'expired' | 'disabled'; key: string; activation_limit: number | null; activation_usage: number; created_at: string; expires_at: string | null }
 export interface LsInstance { id: string; name: string; created_at: string }
@@ -22,7 +22,18 @@ export interface LsLicenceKeyResource {
   attributes: { store_id: number; product_id: number; order_id: number; status: LsLicenceKey['status']; disabled?: boolean; expires_at: string | null; activation_limit?: number | null };
 }
 
-export class LemonSqueezyError extends Error {}
+/** `status`: HTTP status from Lemon Squeezy, or 0 when it could not be reached. */
+export class LemonSqueezyError extends Error {
+  constructor(message: string, readonly status = 0) { super(message); }
+  /** LS is down, rate limiting, or the API key is wrong: retrying other keys now won't help. */
+  get global() { return this.status === 0 || this.status === 429 || this.status >= 500 || this.status === 401 || this.status === 403; }
+}
+
+/** Main API subscription object (only the fields xpost reads). */
+export interface LsSubscriptionResource {
+  id: string;
+  attributes: { store_id: number; order_id: number; product_id: number; variant_id: number; status: string; updated_at?: string };
+}
 
 export class LemonSqueezy {
   // Wrapped: Workers throws "Illegal invocation" if the global fetch is called as a method of another object.
@@ -39,6 +50,11 @@ export class LemonSqueezy {
     const res = await this.api('GET', `/v1/license-keys/${encodeURIComponent(String(id))}`, undefined, true);
     return res === null ? null : (res as { data: LsLicenceKeyResource }).data;
   }
+  /** A subscription by ID (maps subscription invoice events to an order), or null if LS says it does not exist. */
+  async getSubscription(id: number): Promise<LsSubscriptionResource | null> {
+    const res = await this.api('GET', `/v1/subscriptions/${encodeURIComponent(String(id))}`, undefined, true);
+    return res === null ? null : (res as { data: LsSubscriptionResource }).data;
+  }
   async licenceKeysForOrder(orderId: number): Promise<{ id: string; attributes: { status: string } }[]> {
     return ((await this.api('GET', `/v1/license-keys?filter[order_id]=${orderId}`)) as { data: { id: string; attributes: { status: string } }[] }).data;
   }
@@ -54,7 +70,7 @@ export class LemonSqueezy {
         body: new URLSearchParams(params).toString(), signal: AbortSignal.timeout(15_000),
       });
     } catch (e) { throw new LemonSqueezyError(`Lemon Squeezy unreachable: ${(e as Error).message}`); }
-    if (res.status >= 500 || res.status === 429) throw new LemonSqueezyError(`Lemon Squeezy ${action} returned HTTP ${res.status}`);
+    if (res.status >= 500 || res.status === 429) throw new LemonSqueezyError(`Lemon Squeezy ${action} returned HTTP ${res.status}`, res.status);
     const body = (await res.json().catch(() => null)) as LsLicenceResponse | null;
     if (!body || typeof body !== 'object') throw new LemonSqueezyError(`Lemon Squeezy ${action} returned non-JSON (HTTP ${res.status})`);
     return { status: res.status, body };
@@ -67,7 +83,7 @@ export class LemonSqueezy {
       body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15_000),
     }).catch((e: Error) => { throw new LemonSqueezyError(`Lemon Squeezy unreachable: ${e.message}`); });
     if (nullOn404 && res.status === 404) return null;
-    if (!res.ok) throw new LemonSqueezyError(`Lemon Squeezy ${method} ${path.split('?')[0]!.replace(/\/\d+$/, '/:id')} returned HTTP ${res.status}`);
+    if (!res.ok) throw new LemonSqueezyError(`Lemon Squeezy ${method} ${path.split('?')[0]!.replace(/\/\d+$/, '/:id')} returned HTTP ${res.status}`, res.status);
     return res.json();
   }
 }

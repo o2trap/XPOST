@@ -1,18 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DAY, T0, harness, resetDb, startDb } from './harness';
+import { DAY, T0, harness, resetDb, runCron, startDb } from './harness';
 import { licence, seedUser, targetStatuses } from './fixtures';
 
 let db: D1Database, dispose: () => Promise<void>;
 beforeAll(async () => ({ db, dispose } = await startDb()));
 afterAll(() => dispose());
 beforeEach(() => resetDb(db));
-
-async function runCron(h: ReturnType<typeof harness>) {
-  const waits: Promise<unknown>[] = [];
-  await h.app.scheduled({ cron: '*/15 * * * *', scheduledTime: h.clock.now, noRetry() {} } as ScheduledController, h.env,
-    { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException() {} } as unknown as ExecutionContext);
-  await Promise.all(waits);
-}
 
 describe('cron licence re-validation', () => {
   it('re-checks only stale licences, applies LS status and pauses blocked users', async () => {
@@ -87,5 +80,44 @@ describe('cron licence re-validation', () => {
       await runCron(h);
       expect(h.fake.calls).toEqual([]);
     }
+  });
+
+  it('a key that keeps failing (e.g. 422) is skipped until next time instead of blocking the queue; 5xx stops the run', async () => {
+    const h = harness(db);
+    h.clock.now = T0 + 2 * DAY;
+    const bad = await seedUser(db, { validatedAt: T0, lsKeyId: 501 });
+    const good = await seedUser(db, { validatedAt: T0 + 1, lsKeyId: 502 });
+    const k = h.fake.addKey({ key: 'K-GOOD', status: 'expired' });
+    k.id = 502;
+    h.fake.keyErrors.set(501, 422);
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await runCron(h);
+    expect(h.fake.calls).toEqual(['GET /v1/license-keys/501', 'GET /v1/license-keys/502']);
+    expect(await licence(db, bad.licenceId)).toMatchObject({ status: 'active', last_validated_at: h.clock.now }); // status untouched
+    expect(await licence(db, good.licenceId)).toMatchObject({ status: 'expired' });
+
+    // 503, 429 and 401 are global: stop at once
+    for (const status of [503, 429, 401]) {
+      await resetDb(db);
+      h.fake.calls = [];
+      await seedUser(db, { validatedAt: T0, lsKeyId: 601 });
+      const after = await seedUser(db, { validatedAt: T0 + 1, lsKeyId: 602 });
+      h.fake.keyErrors.set(601, status);
+      await runCron(h);
+      expect(h.fake.calls, String(status)).toEqual(['GET /v1/license-keys/601']);
+      expect((await licence(db, after.licenceId)).last_validated_at).toBe(T0 + 1);
+    }
+    spy.mockRestore();
+  });
+
+  it('a licence whose variant is no longer allowed (LS_VARIANT_IDS) is disabled', async () => {
+    const h = harness(db, { LS_VARIANT_IDS: '300' });
+    h.clock.now = T0 + 2 * DAY;
+    const u = await seedUser(db, { validatedAt: T0, variantId: 100 });
+    const ok = await seedUser(db, { validatedAt: T0, variantId: 300 });
+    for (const x of [u, ok]) h.fake.addKey({ key: `K-${x.licenceId}`, status: 'active' }).id = (await licence(db, x.licenceId)).ls_license_key_id;
+    await runCron(h);
+    expect(await licence(db, u.licenceId)).toMatchObject({ status: 'disabled', status_reason: 'not_found' });
+    expect((await licence(db, ok.licenceId)).status).toBe('active');
   });
 });

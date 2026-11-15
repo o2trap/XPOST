@@ -26,6 +26,9 @@ describe('config', () => {
     expect(() => getConfig({ LS_VARIANT_IDS: 'abc' })).toThrow(/LS_VARIANT_IDS/);
     expect(() => getConfig({ SESSION_SECRET: 'short' })).toThrow(/SESSION_SECRET/);
     expect(() => getConfig({ MAX_WEB_SESSIONS: '0' })).toThrow(/MAX_WEB_SESSIONS/);
+    expect(() => getConfig({ ALLOW_TEST_WEBHOOKS: 'yes' })).toThrow(/ALLOW_TEST_WEBHOOKS/);
+    expect(getConfig({}).ALLOW_TEST_WEBHOOKS).toBe(false);
+    expect(getConfig({ ALLOW_TEST_WEBHOOKS: 'true' }).ALLOW_TEST_WEBHOOKS).toBe(true);
   });
 
   it('wrangler.toml keeps secrets out and ships placeholder LS IDs', () => {

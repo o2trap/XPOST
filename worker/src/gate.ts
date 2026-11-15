@@ -13,6 +13,8 @@ const BLOCK_MESSAGES: Record<string, string> = {
   expired: 'Your xpost licence has expired. Renew it in Lemon Squeezy to post and get reminders again.',
   disabled: 'Your xpost licence key has been disabled. Contact support if you think this is a mistake.',
   subscription_paused: 'Your xpost subscription is paused. Resume it in Lemon Squeezy to post and get reminders again.',
+  unpaid: "Your xpost subscription payment couldn't be collected, so new posts and reminders are paused. Update your card in Lemon Squeezy.",
+  payment_refunded: 'Your last xpost subscription payment was refunded, so new posts and reminders are paused until the next payment.',
   not_found: 'Lemon Squeezy no longer recognises your xpost licence key. Contact support.',
   inactive: 'Your xpost licence is not active right now.',
 };
@@ -20,6 +22,10 @@ const WARNING_MESSAGES: Record<string, string> = {
   payment_failed: 'Your last xpost payment failed. Lemon Squeezy will retry it; update your card there so you keep access.',
   cancelled: 'Your xpost subscription is cancelled. xpost keeps working until the end of the period you paid for.',
 };
+
+// TODO(M4): the reminder sweep must call licenceBlock() for each reminder's user before sending (pause.ts pauses
+// reminders when a licence changes, but the sweep is the last line of defence, e.g. for a licence that expires by
+// time between cron runs).
 
 /** Why posting is blocked, or null when the licence is usable. Expiry is checked live, not only by the cron. */
 export function licenceBlock(l: Pick<LicenceRow, 'status' | 'status_reason' | 'expires_at'>, now: number): { code: string; message: string } | null {
