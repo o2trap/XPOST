@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
-import type { HealthResponse } from '@xpost/shared';
+import { useCallback, useEffect, useState } from 'react';
+import type { MeResponse } from '@xpost/shared';
 import { resolveTheme, toggleTheme, type Theme } from './theme';
+import { getMe } from './api';
+import { SignIn } from './SignIn';
+import { Account } from './Account';
 
 function initialTheme(): Theme {
   let stored: string | null = null;
@@ -10,19 +13,23 @@ function initialTheme(): Theme {
 
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
-  const [status, setStatus] = useState<string>('checking...');
+  // undefined = loading, null = signed out
+  const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const r = await getMe();
+    if (r.ok) { setMe(r.data); setLoadError(null); }
+    else if (r.status === 401) { setMe(null); setLoadError(null); }
+    else { setMe(null); setLoadError(r.error.message); }
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     try { localStorage.setItem('xpost-theme', theme); } catch { /* storage unavailable */ }
   }, [theme]);
 
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json() as Promise<HealthResponse>)
-      .then((h) => setStatus(h.ok ? `ok (v${h.version})` : 'down'))
-      .catch(() => setStatus('unreachable'));
-  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   return (
     <main className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -38,7 +45,10 @@ export function App() {
           </button>
         </div>
         <p className="text-slate-600 dark:text-slate-400">Write once, post everywhere.</p>
-        <p className="text-sm">API status: <span data-testid="status" className="font-mono">{status}</span></p>
+        {loadError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{loadError}</p>}
+        {me === undefined ? <p className="text-sm text-slate-500">Loading…</p>
+          : me === null ? <SignIn onSignedIn={refresh} />
+          : <Account me={me} onChange={refresh} onSignedOut={() => setMe(null)} />}
       </div>
     </main>
   );

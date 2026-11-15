@@ -1,5 +1,7 @@
 # Cloudflare Worker with static assets (free plan), deployed by Cloudflare's Git integration (Workers Builds).
-# Dashboard build settings: Root directory = / (blank) · Build command = npm run build · Deploy command = npx wrangler deploy
+# Dashboard build settings: Root directory = / (blank) · Build command = npm run build · Deploy command = npm run deploy
+# (`npm run deploy` = scripts/deploy.mjs: creates the D1 database on the very first deploy, applies D1 migrations,
+# then runs `wrangler deploy`. The Workers Builds API token needs "D1: Edit"; see README "Deploy".)
 # Production branch: claude/great-lamport-krx9rg (every push deploys).
 # `name` must match the Worker's name in the Cloudflare dashboard.
 name = "xpost"
@@ -19,5 +21,54 @@ not_found_handling = "single-page-application"
 # Everything else falls through to env.ASSETS.fetch.
 run_worker_first = true
 
+# D1 is the source of truth (users, licences, sessions, posts, reminders...). No database_id: automatic resource
+# provisioning. `wrangler deploy` connects to the database named "xpost", or creates it if it does not exist yet.
+# Migrations live in worker/migrations and are applied by scripts/deploy.mjs BEFORE the new code is deployed.
+[[d1_databases]]
+binding = "DB"
+database_name = "xpost"
+migrations_dir = "worker/migrations"
+
+# Rate limits (Cloudflare Rate Limiting API, free). Same numbers as LIMITS in worker/src/rate-limit.ts (a test checks).
+# namespace_id must be unique in the Cloudflare account: XLISTit uses 7101-7106, so xpost uses 8101+.
+[[ratelimits]]
+name = "RL_SIGNIN"
+namespace_id = "8101"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "RL_SIGNIN_EMAIL"
+namespace_id = "8102"
+simple = { limit = 5, period = 60 }
+
+[[ratelimits]]
+name = "RL_API"
+namespace_id = "8103"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "RL_UPSTREAM"
+namespace_id = "8104"
+simple = { limit = 300, period = 60 }
+
+# Licence re-validation (and, from M4, the reminder sweep). Free plan: 5 cron triggers per account, 10 ms CPU each.
+[triggers]
+crons = ["*/15 * * * *"]
+
 [vars]
 APP_NAME = "xpost"
+# Lemon Squeezy IDs of the xpost product (same store as XLISTit, different product). Placeholders until the product
+# exists: while LS_STORE_ID or LS_PRODUCT_ID is empty, every sign-in is refused ("not set up yet") and webhooks get 503.
+# Set the real values here (they are not secret) or in the dashboard (keep_vars keeps dashboard values).
+LS_STORE_ID = ""
+LS_PRODUCT_ID = ""
+# Optional comma-separated variant IDs; empty = any variant of LS_PRODUCT_ID.
+LS_VARIANT_IDS = ""
+# Limits and timings (defaults are in worker/src/config.ts; uncomment to override).
+# MAX_WEB_SESSIONS = "3"
+# MAX_DESKTOP_DEVICES = "2"
+# SESSION_TTL_DAYS = "30"
+# REVALIDATE_HOURS = "24"
+# REVALIDATE_BATCH = "15"
+# DESKTOP_OFFLINE_GRACE_DAYS = "7"
+# Secrets (never here): LS_API_KEY, LS_WEBHOOK_SECRET, SESSION_SECRET. See .dev.vars.example.

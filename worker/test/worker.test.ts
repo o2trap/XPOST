@@ -4,6 +4,7 @@ import worker, { type Env } from '../src/index';
 const env: Env = {
   ASSETS: { fetch: async (req) => new Response(`asset:${new URL(req.url).pathname}`, { headers: { 'content-type': 'text/html' } }) },
   APP_NAME: 'xpost',
+  DB: undefined as unknown as D1Database, // not touched by these routes
 };
 const get = (path: string, base = 'https://xpost.example') => worker.fetch(new Request(base + path), env);
 
@@ -17,7 +18,7 @@ describe('worker', () => {
     const res = await get('/api/nope');
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({ error: 'Not found' });
+    expect(await res.json()).toMatchObject({ ok: false, code: 'not_found' });
   });
   it('other requests fall through to ASSETS', async () => {
     const res = await get('/some/page');

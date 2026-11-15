@@ -3,12 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "description": "xpost: write once, post everywhere (manual intent links, handoff, desktop assisted fill; no social media APIs)",
-  "workspaces": ["web", "worker", "shared", "desktop"],
+  "workspaces": [
+    "web",
+    "worker",
+    "shared",
+    "desktop"
+  ],
   "scripts": {
     "build": "npm run build -w web && npm run typecheck -w worker",
     "dev": "npm run build -w web && wrangler dev",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "deploy": "node scripts/deploy.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply xpost --local"
   },
   "devDependencies": {
     "wrangler": "^4.157.0"

@@ -1,0 +1,18 @@
+# Copy to .dev.vars (ignored by git) for `npm run dev`. Values go in .dev.vars only, never in this file.
+# In production these are Worker secrets: Cloudflare dashboard > Workers & Pages > xpost > Settings >
+# Variables and Secrets > Add > type "Secret".
+
+# Lemon Squeezy API key (Settings > API in Lemon Squeezy). Used for licence re-validation (cron) and to disable
+# a licence key after a full refund. Without it, sign-in works but the cron re-validation is skipped.
+LS_API_KEY=
+# Signing secret of the Lemon Squeezy webhook pointing at https://<your xpost address>/api/webhooks/lemonsqueezy.
+LS_WEBHOOK_SECRET=
+# At least 32 random characters, e.g. the output of: openssl rand -base64 48
+# Keys the CSRF tokens and the hashes used for rate limits and audit IPs. Changing it signs everyone out of CSRF
+# (they reload the page) but does not end sessions.
+SESSION_SECRET=
+
+# Not secret (normally set in wrangler.toml [vars] or the dashboard); handy to override locally:
+# LS_STORE_ID=
+# LS_PRODUCT_ID=
+# LS_VARIANT_IDS=

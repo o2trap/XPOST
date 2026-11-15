@@ -1,0 +1,8 @@
+# Test-only config: tests get a real local D1 (workerd, in memory) through wrangler's getPlatformProxy.
+# Migrations from ../migrations are applied by test/harness.ts.
+name = "xpost-test"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "xpost-test"

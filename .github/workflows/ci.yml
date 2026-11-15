@@ -13,3 +13,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Proves the D1 migrations run with wrangler's own runner (local database, no Cloudflare account needed).
+      - run: npm run db:migrate:local
+      # Bundles the Worker as a deploy would, without deploying.
+      - run: npx wrangler deploy --dry-run --outdir /tmp/wrangler-dry
