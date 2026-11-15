@@ -39,8 +39,9 @@ const Env = z.object({
   MAX_DESKTOP_DEVICES: int(2, 1, 50),
   SESSION_TTL_DAYS: int(30, 1, 365),
   REVALIDATE_HOURS: int(24, 1, 24 * 30),
-  /** Licences re-validated per cron run. Each one is one Lemon Squeezy request (Free plan: 50 subrequests). */
-  REVALIDATE_BATCH: int(15, 1, 40),
+  /** Licences re-validated per cron run. Each one is one Lemon Squeezy request (Free plan: 50 subrequests per run;
+   *  max 35 leaves room for refund disable retries, which the cron also caps by counting requests). */
+  REVALIDATE_BATCH: int(15, 1, 35),
   DESKTOP_OFFLINE_GRACE_DAYS: int(7, 0, 90),
 });
 export type Config = z.output<typeof Env>;

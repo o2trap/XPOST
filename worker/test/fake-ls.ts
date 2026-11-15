@@ -19,6 +19,8 @@ export class FakeLemonSqueezy {
   down: number | null = null;
   /** Licence key ID -> HTTP status the main API returns for that one key (e.g. 422). */
   keyErrors = new Map<number, number>();
+  /** Licence key ID -> a raw (non-JSON) 200 body the main API returns for that key. */
+  keyRawBodies = new Map<number, string>();
   /** When set, PATCH (disable) requests fail with this status. */
   disableFails: number | null = null;
   /** Main API subscriptions: id -> attributes. */
@@ -79,6 +81,7 @@ export class FakeLemonSqueezy {
       return sub ? j({ data: { type: 'subscriptions', id: subM[1], attributes: sub } }) : j({ errors: [{ status: '404' }] }, 404);
     }
     const one = /^\/v1\/license-keys\/(\d+)$/.exec(url.pathname);
+    if (one && method === 'GET' && this.keyRawBodies.has(Number(one[1]))) return new Response(this.keyRawBodies.get(Number(one[1])), { status: 200, headers: { 'Content-Type': 'text/html' } });
     if (one && this.keyErrors.has(Number(one[1]))) return j({ errors: [{ status: String(this.keyErrors.get(Number(one[1]))) }] }, this.keyErrors.get(Number(one[1])));
     if (one && method === 'PATCH' && this.disableFails) return j({ errors: [{ status: String(this.disableFails) }] }, this.disableFails);
     if (one) {

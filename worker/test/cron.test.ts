@@ -120,4 +120,42 @@ describe('cron licence re-validation', () => {
     expect(await licence(db, u.licenceId)).toMatchObject({ status: 'disabled', status_reason: 'not_found' });
     expect((await licence(db, ok.licenceId)).status).toBe('active');
   });
+
+  it('a 200 with a non-JSON body is a per-key error, not "LS is down" (C)', async () => {
+    const h = harness(db);
+    h.clock.now = T0 + 2 * DAY;
+    const weird = await seedUser(db, { validatedAt: T0, lsKeyId: 701 });
+    const next = await seedUser(db, { validatedAt: T0 + 1, lsKeyId: 702 });
+    h.fake.keyRawBodies.set(701, '<html>maintenance</html>');
+    h.fake.addKey({ key: 'K-702', status: 'expired' }).id = 702;
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await runCron(h);
+    spy.mockRestore();
+    expect(await licence(db, weird.licenceId)).toMatchObject({ status: 'active', last_validated_at: h.clock.now });
+    expect((await licence(db, next.licenceId)).status).toBe('expired');
+  });
+
+  it('stays under the Free plan subrequest limit with a full batch plus refund retries, and logs orders it gives up on (D)', async () => {
+    const h = harness(db, { REVALIDATE_BATCH: '35' });
+    h.clock.now = T0 + 2 * DAY;
+    for (let i = 0; i < 36; i++) await seedUser(db, { validatedAt: T0 + i });
+    for (let i = 0; i < 3; i++) {
+      await db.prepare('INSERT INTO refunded_orders (ls_order_id, ls_store_id, ls_product_id, refunded_at) VALUES (?, 1, 10, ?)').bind(9000 + i, T0 + i).run();
+      h.fake.addKey({ key: `K-R${i}`, orderId: 9000 + i, status: 'active' });
+    }
+    await runCron(h);
+    expect(h.fake.calls.length).toBeLessThanOrEqual(45);
+    expect(h.fake.calls.filter((c) => c.startsWith('GET /v1/license-keys/')).length).toBe(35);
+
+    // giving up after MAX_DISABLE_ATTEMPTS is logged
+    await db.prepare("UPDATE refunded_orders SET disable_attempts = 19, ls_disabled_at = NULL").run();
+    await db.prepare("UPDATE licences SET last_validated_at = ?").bind(h.clock.now).run();
+    for (const k of h.fake.keys.values()) if (k.orderId >= 9000) k.status = 'active';
+    h.fake.disableFails = 503;
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await runCron(h);
+    const out = spy.mock.calls.flat().join(' ');
+    spy.mockRestore();
+    expect(out).toMatch(/giving up disabling the licence keys of refunded order 900\d after 20 attempts/);
+  });
 });

@@ -248,4 +248,27 @@ describe('Lemon Squeezy webhook: subscriptions and invoices', () => {
     const h = harness(db);
     for (let i = 0; i < 130; i++) expect((await send(h, orderEvent('order_created', { orderId: 10_000 + i, status: 'paid' }))).status).toBe(200);
   });
+
+  it('only a successful payment clears a refunded payment; a subscription status change does not (A)', async () => {
+    const h = harness(db);
+    const { licenceId } = await seedUser(db, { orderId: 770, status: 'inactive', reason: 'payment_refunded' });
+    await send(h, subscriptionEvent('subscription_updated', { subscriptionId: 77, orderId: 770, status: 'active', updatedAt: '2026-11-14T10:00:00.000000Z' }));
+    expect(await licence(db, licenceId)).toMatchObject({ status: 'inactive', status_reason: 'payment_refunded' });
+    await send(h, invoiceEvent('subscription_payment_success', { invoiceId: 970, subscriptionId: 77 }));
+    expect(await licence(db, licenceId)).toMatchObject({ status: 'active', status_reason: null });
+  });
+
+  it('cancelled keeps an existing block and only warns when the licence is usable (B)', async () => {
+    const h = harness(db);
+    for (const reason of ['subscription_paused', 'unpaid', 'payment_refunded']) {
+      await resetDb(db);
+      const { licenceId } = await seedUser(db, { orderId: 780, status: 'inactive', reason });
+      expect(await result(h, subscriptionEvent('subscription_cancelled', { subscriptionId: 78, orderId: 780, status: 'cancelled' }))).toMatch(/0 of 1/);
+      expect(await licence(db, licenceId), reason).toMatchObject({ status: 'inactive', status_reason: reason });
+    }
+    await resetDb(db);
+    const ok = await seedUser(db, { orderId: 781 });
+    await send(h, subscriptionEvent('subscription_cancelled', { subscriptionId: 79, orderId: 781, status: 'cancelled' }));
+    expect(await licence(db, ok.licenceId)).toMatchObject({ status: 'active', status_reason: 'cancelled' });
+  });
 });

@@ -50,6 +50,8 @@ interface Plan { result: string; statements: D1PreparedStatement[]; disableOrder
 const MAX_BODY = 256 * 1024;
 /** A claimed delivery that never finished (Worker crashed) can be claimed again after this long. */
 export const CLAIM_LEASE_MS = 60_000;
+/** After this many failed LS disable attempts for a refunded order, the cron stops retrying it (and it is logged). */
+export const MAX_DISABLE_ATTEMPTS = 20;
 
 export async function handleWebhook(ctx: Ctx, req: Request): Promise<Response> {
   const { cfg, db, now } = ctx;
@@ -104,7 +106,11 @@ export async function disableRefundedOrder(ctx: Ctx, orderId: number): Promise<b
     const keys = await ls.licenceKeysForOrder(orderId);
     for (const k of keys) if (k.attributes.status !== 'disabled') await ls.disableLicenceKey(k.id);
   } catch (e) {
-    await db.prepare('UPDATE refunded_orders SET disable_attempts = disable_attempts + 1 WHERE ls_order_id = ?').bind(orderId).run();
+    const row = await db.prepare('UPDATE refunded_orders SET disable_attempts = disable_attempts + 1 WHERE ls_order_id = ? RETURNING disable_attempts')
+      .bind(orderId).first<{ disable_attempts: number }>();
+    if (row && row.disable_attempts >= MAX_DISABLE_ATTEMPTS) {
+      logError(`refund: giving up disabling the licence keys of refunded order ${orderId} after ${row.disable_attempts} attempts; disable them in Lemon Squeezy by hand (xpost already refuses them)`);
+    }
     throw e;
   }
   await db.prepare('UPDATE refunded_orders SET ls_disabled_at = ? WHERE ls_order_id = ?').bind(now, orderId).run();
@@ -120,9 +126,11 @@ export function fromSubscriptionStatus(r: LicenceRef, subStatus: string): Next {
     case 'paused': return subOwned ? { status: 'inactive', reason: 'subscription_paused' } : null;
     case 'unpaid': return subOwned ? { status: 'inactive', reason: 'unpaid' } : null;
     case 'past_due': return subOwned ? { status: 'active', reason: 'payment_failed' } : null;
-    case 'cancelled': return subOwned ? { status: 'active', reason: 'cancelled' } : null;
+    // Cancelled = still paid up to the end of the period: only a warning, and never lifts an existing block.
+    case 'cancelled': return r.status === 'active' ? { status: 'active', reason: 'cancelled' } : null;
     case 'active':
-    case 'on_trial': return subOwned ? { status: 'active', reason: null } : null;
+    // A refunded payment is only cleared by a later successful payment (invoice event), not by a status change.
+    case 'on_trial': return subOwned && r.status_reason !== 'payment_refunded' ? { status: 'active', reason: null } : null;
     default: return null;
   }
 }

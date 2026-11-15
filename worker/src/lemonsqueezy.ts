@@ -63,6 +63,7 @@ export class LemonSqueezy {
   }
 
   private async licence(action: string, params: Record<string, string>): Promise<{ status: number; body: LsLicenceResponse }> {
+    this.requests++;
     let res: Response;
     try {
       res = await this.fetchFn(`${this.base}/v1/licenses/${action}`, {
@@ -76,7 +77,11 @@ export class LemonSqueezy {
     return { status: res.status, body };
   }
 
+  /** Requests made by this client (the Free plan allows 50 subrequests per invocation). */
+  requests = 0;
+
   private async api(method: string, path: string, body?: unknown, nullOn404 = false): Promise<unknown> {
+    this.requests++;
     if (!this.apiKey) throw new LemonSqueezyError('LS_API_KEY is not configured');
     const res = await this.fetchFn(`${this.base}${path}`, {
       method, headers: { Accept: 'application/vnd.api+json', 'Content-Type': 'application/vnd.api+json', Authorization: `Bearer ${this.apiKey}` },
@@ -84,6 +89,7 @@ export class LemonSqueezy {
     }).catch((e: Error) => { throw new LemonSqueezyError(`Lemon Squeezy unreachable: ${e.message}`); });
     if (nullOn404 && res.status === 404) return null;
     if (!res.ok) throw new LemonSqueezyError(`Lemon Squeezy ${method} ${path.split('?')[0]!.replace(/\/\d+$/, '/:id')} returned HTTP ${res.status}`, res.status);
-    return res.json();
+    // A 2xx that isn't JSON is about this request only (status stays 2xx, so LemonSqueezyError.global is false).
+    try { return await res.json(); } catch { throw new LemonSqueezyError(`Lemon Squeezy ${method} ${path.split('?')[0]!.replace(/\/\d+$/, '/:id')} returned non-JSON (HTTP ${res.status})`, res.status); }
   }
 }

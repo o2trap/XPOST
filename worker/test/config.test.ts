@@ -26,6 +26,8 @@ describe('config', () => {
     expect(() => getConfig({ LS_VARIANT_IDS: 'abc' })).toThrow(/LS_VARIANT_IDS/);
     expect(() => getConfig({ SESSION_SECRET: 'short' })).toThrow(/SESSION_SECRET/);
     expect(() => getConfig({ MAX_WEB_SESSIONS: '0' })).toThrow(/MAX_WEB_SESSIONS/);
+    expect(() => getConfig({ REVALIDATE_BATCH: '36' })).toThrow(/REVALIDATE_BATCH/); // Free plan: 50 subrequests
+    expect(getConfig({ REVALIDATE_BATCH: '35' }).REVALIDATE_BATCH).toBe(35);
     expect(() => getConfig({ ALLOW_TEST_WEBHOOKS: 'yes' })).toThrow(/ALLOW_TEST_WEBHOOKS/);
     expect(getConfig({}).ALLOW_TEST_WEBHOOKS).toBe(false);
     expect(getConfig({ ALLOW_TEST_WEBHOOKS: 'true' }).ALLOW_TEST_WEBHOOKS).toBe(true);

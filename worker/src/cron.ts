@@ -16,14 +16,15 @@ import { HOUR_MS, licenceConfigured } from './config';
 import { LemonSqueezyError } from './lemonsqueezy';
 import { deriveStatus, isXpostProduct, parseTime } from './licence';
 import { logError, logInfo } from './log';
-import { disableRefundedOrder } from './webhook';
+import { MAX_DISABLE_ATTEMPTS, disableRefundedOrder } from './webhook';
 import { syncPauseStatements } from './pause';
 
 export interface RevalidateResult { checked: number; changed: number; failed: number; refundsRetried: number; skipped?: string; error?: string }
 
 /** Refunded orders whose LS key disable is retried per run (each costs 2+ subrequests). */
 export const REFUND_RETRIES = 3;
-const MAX_DISABLE_ATTEMPTS = 20;
+/** Stop starting new LS work once this many subrequests were made in the run (Free plan limit: 50). */
+export const SUBREQUEST_BUDGET = 45;
 
 interface Row { id: string; user_id: string; ls_license_key_id: number; ls_variant_id: number; status: LicenceStatus; status_reason: string | null; expires_at: number | null }
 
@@ -82,6 +83,8 @@ export async function revalidateLicences(ctx: Ctx): Promise<RevalidateResult> {
     const pending = await db.prepare('SELECT ls_order_id FROM refunded_orders WHERE ls_disabled_at IS NULL AND disable_attempts < ? ORDER BY refunded_at LIMIT ?')
       .bind(MAX_DISABLE_ATTEMPTS, REFUND_RETRIES).all<{ ls_order_id: number }>();
     for (const o of pending.results) {
+      // Each order costs 1 list request + 1 per key; keep a margin under the per-invocation limit.
+      if (ctx.ls.requests + 3 > SUBREQUEST_BUDGET) break;
       try { if (await disableRefundedOrder(ctx, o.ls_order_id)) refundsRetried++; } catch (e) {
         logError('cron: refund key disable failed again', e instanceof LemonSqueezyError ? e.message : e);
         break;
