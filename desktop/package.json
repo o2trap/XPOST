@@ -1,5 +1,5 @@
 {
-  "name": "@xpost/desktop",
+  "name": "@scatterit/desktop",
   "version": "0.0.0",
   "private": true,
   "description": "Placeholder for the desktop app (milestone M7). No Electron yet.",

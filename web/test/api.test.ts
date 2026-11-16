@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CSRF_HEADER } from '@xpost/shared';
+import { CSRF_HEADER } from '@scatterit/shared';
 import { revokeSession, signIn, signOut } from '../src/api';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -18,8 +18,8 @@ describe('api client', () => {
   });
 
   it('passes through the plain-English error message', async () => {
-    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ ok: false, code: 'expired', message: 'This xpost licence has expired.' }), { status: 403 }));
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ ok: false, code: 'expired', message: 'This SCATTERit licence has expired.' }), { status: 403 }));
     const r = await signIn('a@b.co', 'KEY-12345678');
-    expect(r).toMatchObject({ ok: false, status: 403, error: { code: 'expired', message: 'This xpost licence has expired.' } });
+    expect(r).toMatchObject({ ok: false, status: 403, error: { code: 'expired', message: 'This SCATTERit licence has expired.' } });
   });
 });

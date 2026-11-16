@@ -1,20 +1,20 @@
 /**
  * Web sign-in, sessions and CSRF.
  *
- * Session: a random 256-bit token in the cookie `__Host-xpost_session` (HttpOnly, Secure, SameSite=Lax, Path=/,
+ * Session: a random 256-bit token in the cookie `__Host-scatterit_session` (HttpOnly, Secure, SameSite=Lax, Path=/,
  * no Domain). D1 stores only SHA-256(token). Sessions expire after SESSION_TTL_DAYS; each licence may have
  * MAX_WEB_SESSIONS live web sessions (the oldest is revoked when a new one starts).
  *
  * CSRF (every state-changing /api request except the signed LS webhook):
  *  1. Same-origin check: `Sec-Fetch-Site` must be `same-origin` when sent, and `Origin` must equal the request's
  *     own origin. A request with neither header is refused (browsers always send Origin on POST/DELETE).
- *  2. Header `X-XPOST-CSRF`: before sign-in it must be present (the fixed value "sign-in"; a custom header cannot be
- *     sent cross-site without a CORS preflight, which xpost never grants). With a session it must equal
+ *  2. Header `X-SCATTERIT-CSRF`: before sign-in it must be present (the fixed value "sign-in"; a custom header cannot be
+ *     sent cross-site without a CORS preflight, which SCATTERit never grants). With a session it must equal
  *     HMAC-SHA256(SESSION_SECRET, "csrf:" + session id), which the client gets from sign-in and GET /api/me.
  *  SameSite=Lax on the cookie is a third layer.
  */
 import { z } from 'zod';
-import { CSRF_HEADER, CSRF_PRESESSION, type MeResponse, type SessionInfo, type LicenceStatus } from '@xpost/shared';
+import { CSRF_HEADER, CSRF_PRESESSION, type MeResponse, type SessionInfo, type LicenceStatus } from '@scatterit/shared';
 import type { Ctx } from './app';
 import { DAY_MS, HOUR_MS, licenceConfigured } from './config';
 import { fail, json, readJson } from './http';
@@ -26,7 +26,7 @@ import { licenceInfo, type LicenceRow } from './gate';
 import { logError } from './log';
 import { LemonSqueezyError } from './lemonsqueezy';
 
-export const COOKIE_NAME = '__Host-xpost_session';
+export const COOKIE_NAME = '__Host-scatterit_session';
 /** last_seen_at is written at most this often per session (saves D1 writes). */
 export const LAST_SEEN_EVERY_MS = 5 * 60_000;
 
@@ -51,7 +51,7 @@ export const clearSessionCookie = () => `${COOKIE_NAME}=; Path=/; HttpOnly; Secu
 export function shortUserAgent(ua: string | null): string | null {
   if (!ua) return null;
   const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox'
-    : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /xpost/i.test(ua) ? 'xpost app' : 'Browser';
+    : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : /scatterit/i.test(ua) ? 'SCATTERit app' : 'Browser';
   const os = /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
     : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /CrOS/.test(ua) ? 'ChromeOS' : /Linux/.test(ua) ? 'Linux' : null;
   return (os ? `${browser} on ${os}` : browser).slice(0, 60);
@@ -169,7 +169,7 @@ export async function handleSignIn(ctx: Ctx, req: Request, url: URL): Promise<Re
   const checked = checkForSignIn(cfg, res.body, email, now);
   const ipHash = await keyed(ctx, 'ip', ctx.ip);
 
-  // Refunds are sticky: LS has no "refunded" key status, so xpost's own records decide. A refund can arrive before
+  // Refunds are sticky: LS has no "refunded" key status, so SCATTERit's own records decide. A refund can arrive before
   // anyone signs in (refunded_orders) or after (licences.status). Only revealed with the right key and email.
   const refunded = (existing?.status === 'refunded' || orderRefunded) && (checked.ok || checked.code === 'disabled' || checked.code === 'expired');
   // A deleted account (M9 "delete my data") cannot sign in again; same generic answer as a wrong email.

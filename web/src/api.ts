@@ -1,5 +1,5 @@
 /** Tiny API client. Cookies carry the session; state-changing requests send the CSRF token header. */
-import { CSRF_HEADER, CSRF_PRESESSION, type ApiError, type MeResponse } from '@xpost/shared';
+import { CSRF_HEADER, CSRF_PRESESSION, type ApiError, type MeResponse } from '@scatterit/shared';
 
 let csrf = '';
 
@@ -13,7 +13,7 @@ async function call<T>(method: string, path: string, body?: unknown, csrfValue =
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
   } catch {
-    return { ok: false, status: 0, error: { ok: false, code: 'server_error', message: "Can't reach xpost. Check your connection." } };
+    return { ok: false, status: 0, error: { ok: false, code: 'server_error', message: "Can't reach SCATTERit. Check your connection." } };
   }
   const data = (await res.json().catch(() => null)) as T | ApiError | null;
   if (res.ok && data) return { ok: true, data: data as T };

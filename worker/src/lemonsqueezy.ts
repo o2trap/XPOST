@@ -2,8 +2,8 @@
  * Forked from XLISTit website/lib/lemonsqueezy.ts. Minimal Lemon Squeezy client.
  * - License API (/v1/licenses/*): public, keyed by the licence key itself.
  * - Main API (/v1/license-keys...): needs LS_API_KEY, server-side only.
- * xpost changes: meta includes customer_email (used to match the sign-in email); getLicenceKey() for cron
- * re-validation (xpost stores only a hash of the key, so it cannot call the License API later);
+ * SCATTERit changes: meta includes customer_email (used to match the sign-in email); getLicenceKey() for cron
+ * re-validation (SCATTERit stores only a hash of the key, so it cannot call the License API later);
  * getSubscription() for invoice events; HTTP status on errors; catalogue helper and instance listing dropped (M7 adds instances back for desktop devices).
  */
 export interface LsLicenceKey { id: number; status: 'inactive' | 'active' | 'expired' | 'disabled'; key: string; activation_limit: number | null; activation_usage: number; created_at: string; expires_at: string | null }
@@ -16,7 +16,7 @@ export interface LsLicenceResponse {
   activated?: boolean; valid?: boolean; deactivated?: boolean; error: string | null;
   license_key?: LsLicenceKey; instance?: LsInstance | null; meta?: LsMeta;
 }
-/** Main API licence-key object (only the fields xpost reads). */
+/** Main API licence-key object (only the fields SCATTERit reads). */
 export interface LsLicenceKeyResource {
   id: string;
   attributes: { store_id: number; product_id: number; order_id: number; status: LsLicenceKey['status']; disabled?: boolean; expires_at: string | null; activation_limit?: number | null };
@@ -29,7 +29,7 @@ export class LemonSqueezyError extends Error {
   get global() { return this.status === 0 || this.status === 429 || this.status >= 500 || this.status === 401 || this.status === 403; }
 }
 
-/** Main API subscription object (only the fields xpost reads). */
+/** Main API subscription object (only the fields SCATTERit reads). */
 export interface LsSubscriptionResource {
   id: string;
   attributes: { store_id: number; order_id: number; product_id: number; variant_id: number; status: string; updated_at?: string };

@@ -6,7 +6,7 @@
  * Sign-in calls Lemon Squeezy, so it gets tight per-address and per-email limits plus a cap for everyone together
  * (RL_UPSTREAM) that protects LS's quota. The LS webhook is not limited by address: it comes from LS's servers and is
  * checked by signature.
- * xpost changes: its own bindings (namespace IDs 8101+, unique in the account), per-email limit, no eBay/admin limits.
+ * SCATTERit changes: its own bindings (namespace IDs 8101+, unique in the account), per-email limit, no eBay/admin limits.
  */
 const WINDOW_MS = 60_000;
 const hits = new Map<string, number[]>();

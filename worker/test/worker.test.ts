@@ -3,16 +3,16 @@ import worker, { type Env } from '../src/index';
 
 const env: Env = {
   ASSETS: { fetch: async (req) => new Response(`asset:${new URL(req.url).pathname}`, { headers: { 'content-type': 'text/html' } }) },
-  APP_NAME: 'xpost',
+  APP_NAME: 'SCATTERit',
   DB: undefined as unknown as D1Database, // not touched by these routes
 };
-const get = (path: string, base = 'https://xpost.example') => worker.fetch(new Request(base + path), env);
+const get = (path: string, base = 'https://scatterit.example') => worker.fetch(new Request(base + path), env);
 
 describe('worker', () => {
   it('GET /api/health', async () => {
     const res = await get('/api/health');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, name: 'xpost', version: '0.1.0' });
+    expect(await res.json()).toEqual({ ok: true, name: 'SCATTERit', version: '0.1.0' });
   });
   it('unknown /api/* is a JSON 404', async () => {
     const res = await get('/api/nope');
@@ -35,9 +35,9 @@ describe('worker', () => {
     }
   });
   it('redirects http to https', async () => {
-    const res = await get('/api/health', 'http://xpost.example');
+    const res = await get('/api/health', 'http://scatterit.example');
     expect(res.status).toBe(308);
-    expect(res.headers.get('location')).toBe('https://xpost.example/api/health');
+    expect(res.headers.get('location')).toBe('https://scatterit.example/api/health');
   });
   it('does not redirect localhost', async () => {
     expect((await get('/api/health', 'http://localhost:8787')).status).toBe(200);

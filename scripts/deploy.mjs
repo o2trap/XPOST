@@ -23,6 +23,7 @@
  */
 import { spawnSync } from 'node:child_process';
 
+// Intentionally keeps the old internal name "xpost" (product is now SCATTERit): renaming the D1 database would create a new, empty one.
 const DB = 'xpost';
 const LOCATION = process.env.D1_LOCATION || 'weur';
 const dryRun = process.argv.includes('--dry-run');

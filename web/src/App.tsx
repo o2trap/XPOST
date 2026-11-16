@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { MeResponse } from '@xpost/shared';
+import type { MeResponse } from '@scatterit/shared';
 import { resolveTheme, toggleTheme, type Theme } from './theme';
 import { getMe } from './api';
 import { SignIn } from './SignIn';
@@ -7,7 +7,7 @@ import { Account } from './Account';
 
 function initialTheme(): Theme {
   let stored: string | null = null;
-  try { stored = localStorage.getItem('xpost-theme'); } catch { /* storage unavailable */ }
+  try { stored = localStorage.getItem('scatterit-theme'); } catch { /* storage unavailable */ }
   return resolveTheme(stored, window.matchMedia('(prefers-color-scheme: dark)').matches);
 }
 
@@ -26,7 +26,7 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    try { localStorage.setItem('xpost-theme', theme); } catch { /* storage unavailable */ }
+    try { localStorage.setItem('scatterit-theme', theme); } catch { /* storage unavailable */ }
   }, [theme]);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -35,7 +35,7 @@ export function App() {
     <main className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto flex max-w-2xl flex-col gap-4 px-4 py-10 sm:py-16">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">xpost</h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">SCATTERit</h1>
           <button
             type="button"
             onClick={() => setTheme(toggleTheme(theme))}

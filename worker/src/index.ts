@@ -1,5 +1,5 @@
 /**
- * xpost as a Cloudflare Worker (free plan). /api/* is handled here; everything else is served from web/dist
+ * SCATTERit as a Cloudflare Worker (free plan). /api/* is handled here; everything else is served from web/dist
  * through the ASSETS binding. The cron trigger re-validates licences (cron.ts).
  *
  * Routes:
@@ -10,7 +10,7 @@
  *   DELETE /api/sessions/:id             own sessions only
  *   POST   /api/webhooks/lemonsqueezy    signed by Lemon Squeezy (no cookie, no CSRF)
  */
-import { APP_NAME, APP_VERSION, type HealthResponse } from '@xpost/shared';
+import { APP_NAME, APP_VERSION, type HealthResponse } from '@scatterit/shared';
 import type { Ctx, Env } from './app';
 import { getConfig } from './config';
 import { LemonSqueezy } from './lemonsqueezy';

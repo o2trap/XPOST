@@ -1,17 +1,17 @@
 /**
  * Licence checks, forked from XLISTit website/lib/licence.ts (statusError, productError, mapLsError, key format).
- * xpost changes:
+ * SCATTERit changes:
  * - Web sign-in only VALIDATES the key. It never activates a Lemon Squeezy instance, because LS instances are the
  *   device slots (activation_limit) that XLISTit-style desktop binding uses; activating one per browser would let a
- *   phone sign-in use up a desktop slot. Web sessions are limited by xpost itself (MAX_WEB_SESSIONS, in D1).
+ *   phone sign-in use up a desktop slot. Web sessions are limited by SCATTERit itself (MAX_WEB_SESSIONS, in D1).
  *   M7 (desktop) will activate instances, as XLISTit does.
  * - Product check is store_id AND product_id (single product) AND, if configured, the variant: the store is shared
- *   with XLISTit, so an XLISTit key must never unlock xpost. Unset IDs fail closed.
+ *   with XLISTit, so an XLISTit key must never unlock SCATTERit. Unset IDs fail closed.
  * - The purchase email must match LS meta.customer_email (case-insensitive).
  * - No trial, ambassador or Ed25519 token code (token signing comes back for desktop in M7).
  */
 import { z } from 'zod';
-import type { LicenceStatus } from '@xpost/shared';
+import type { LicenceStatus } from '@scatterit/shared';
 import type { Config } from './config';
 import type { LsLicenceResponse, LsLicenceKey } from './lemonsqueezy';
 import { sha256Hex } from './crypto';
@@ -21,7 +21,7 @@ export const LicenceKey = z.string().trim().min(8).max(100).regex(/^[A-Za-z0-9-]
 export const Email = z.string().trim().toLowerCase().max(254).pipe(z.email());
 
 /** SHA-256 of the normalised key (trimmed, upper-cased). Stored instead of the key. */
-export const licenceKeyHash = (key: string) => sha256Hex(`xpost-licence:${key.trim().toUpperCase()}`);
+export const licenceKeyHash = (key: string) => sha256Hex(`scatterit-licence:${key.trim().toUpperCase()}`);
 export const keyLast4 = (key: string) => key.trim().slice(-4).toUpperCase();
 
 export type SignInFailure = 'invalid_credentials' | 'expired' | 'disabled' | 'not_configured';
@@ -31,8 +31,8 @@ export interface ValidLicence {
   customerEmail: string; expiresAt: number | null; activationLimit: number | null;
 }
 
-/** Store, product and (optional) variant must be xpost's. Missing config fails closed. */
-export function isXpostProduct(cfg: Config, storeId: unknown, productId: unknown, variantId?: unknown): boolean {
+/** Store, product and (optional) variant must be SCATTERit's. Missing config fails closed. */
+export function isScatteritProduct(cfg: Config, storeId: unknown, productId: unknown, variantId?: unknown): boolean {
   if (cfg.LS_STORE_ID === undefined || cfg.LS_PRODUCT_ID === undefined) return false;
   if (storeId !== cfg.LS_STORE_ID || productId !== cfg.LS_PRODUCT_ID) return false;
   if (cfg.LS_VARIANT_IDS.length && variantId !== undefined && !cfg.LS_VARIANT_IDS.includes(variantId as number)) return false;
@@ -55,7 +55,7 @@ export function checkForSignIn(cfg: Config, body: LsLicenceResponse, email: stri
   const k = body.license_key, m = body.meta;
   if (!k || !m) return { ok: false, code: 'invalid_credentials' };
   // variant_id is always present in validate responses, so variant restrictions are enforced here.
-  if (!isXpostProduct(cfg, m.store_id, m.product_id, m.variant_id ?? -1)) return { ok: false, code: 'invalid_credentials' };
+  if (!isScatteritProduct(cfg, m.store_id, m.product_id, m.variant_id ?? -1)) return { ok: false, code: 'invalid_credentials' };
   const customerEmail = (m.customer_email ?? '').trim().toLowerCase();
   if (!customerEmail || customerEmail !== email) return { ok: false, code: 'invalid_credentials' };
   const expiresAt = parseTime(k.expires_at);
@@ -85,7 +85,7 @@ export const WARNING_REASONS = new Set(['payment_failed', 'cancelled']);
 export const SUBSCRIPTION_BLOCK_REASONS = new Set(['subscription_paused', 'unpaid', 'payment_refunded']);
 
 /**
- * xpost status from a fresh Lemon Squeezy reading. `refunded` is sticky (LS has no refunded key status), and a
+ * SCATTERit status from a fresh Lemon Squeezy reading. `refunded` is sticky (LS has no refunded key status), and a
  * subscription block (paused, unpaid, refunded payment) stays until a subscription event clears it.
  */
 export function deriveStatus(

@@ -1,6 +1,6 @@
 /**
  * Scheduled licence re-validation (cron trigger in wrangler.toml).
- * xpost stores only a hash of each licence key, so it re-reads keys through Lemon Squeezy's main API by licence key
+ * SCATTERit stores only a hash of each licence key, so it re-reads keys through Lemon Squeezy's main API by licence key
  * ID (GET /v1/license-keys/:id, needs LS_API_KEY) instead of the License API.
  * Free plan budget per run: 10 ms CPU, 50 subrequests, 50 D1 queries (a batch counts as one). So each run takes at
  * most REVALIDATE_BATCH (default 15) licences whose last_validated_at is older than REVALIDATE_HOURS: 1 select,
@@ -10,11 +10,11 @@
  * is retried next run. Any other error is about that one key: it is logged, its last_validated_at is bumped (so it
  * is retried after REVALIDATE_HOURS instead of blocking the queue), its status is left as it was, and the run goes on.
  */
-import type { LicenceStatus } from '@xpost/shared';
+import type { LicenceStatus } from '@scatterit/shared';
 import type { Ctx } from './app';
 import { HOUR_MS, licenceConfigured } from './config';
 import { LemonSqueezyError } from './lemonsqueezy';
-import { deriveStatus, isXpostProduct, parseTime } from './licence';
+import { deriveStatus, isScatteritProduct, parseTime } from './licence';
 import { logError, logInfo } from './log';
 import { MAX_DISABLE_ATTEMPTS, disableRefundedOrder } from './webhook';
 import { syncPauseStatements } from './pause';
@@ -46,7 +46,7 @@ export async function revalidateLicences(ctx: Ctx): Promise<RevalidateResult> {
       const k = await ctx.ls.getLicenceKey(r.ls_license_key_id);
       if (!k) next = { status: 'disabled', reason: 'not_found' };
       // LS licence key objects have no variant_id: check the variant recorded at sign-in against today's config.
-      else if (!isXpostProduct(cfg, k.attributes.store_id, k.attributes.product_id, r.ls_variant_id)) next = { status: 'disabled', reason: 'not_found' };
+      else if (!isScatteritProduct(cfg, k.attributes.store_id, k.attributes.product_id, r.ls_variant_id)) next = { status: 'disabled', reason: 'not_found' };
       else {
         expiresAt = parseTime(k.attributes.expires_at);
         lsKeyStatus = k.attributes.status;

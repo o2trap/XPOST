@@ -1,5 +1,5 @@
 {
-  "name": "@xpost/web",
+  "name": "@scatterit/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@xpost/shared": "*",
+    "@scatterit/shared": "*",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"

@@ -1,4 +1,6 @@
-# xpost: Step 0 research and plan
+Product renamed from xpost to SCATTERit on 2026-11-16 (owner decision); the Cloudflare Worker and D1 database keep the internal name xpost.
+
+# SCATTERit: Step 0 research and plan
 
 Date: 2026-11-14. Status: **draft for owner approval. No code has been written.**
 Revision: 2026-11-14 (b). Applies the owner's **no-API decision** (see the box below).
@@ -16,7 +18,7 @@ How to read the labels:
 - **[3P]**: third-party or community source only.
 - **UNVERIFIED**: no official source found. Settle it before relying on it (section J).
 - **Assumption**: a number I chose to make an estimate work. Not from research.
-- **Research fact**: true about a platform's API, but not used by the plan (xpost uses no platform APIs).
+- **Research fact**: true about a platform's API, but not used by the plan (SCATTERit uses no platform APIs).
 
 ---
 
@@ -28,7 +30,7 @@ How to read the labels:
 >
 > **What this means, in plain words:**
 > - **Nothing posts automatically.** A person presses Post every time, on every platform.
-> - **No approvals are needed** from TikTok, Meta, Google, X or Snap. xpost can serve real users as soon as M3 ships.
+> - **No approvals are needed** from TikTok, Meta, Google, X or Snap. SCATTERit can serve real users as soon as M3 ships.
 > - **X costs nothing.** X API spend is $0. Free X web intents are links, not API calls.
 > - **Scheduling means reminders.** Each scheduled item becomes a reminder with a one-click action.
 > - **The desktop app is the most capable client**, because assisted fill lives there.
@@ -38,13 +40,13 @@ How to read the labels:
 
 ## 0. Summary
 
-xpost can be built on the planned stack: Cloudflare for the whole backend, GitHub, and Lemon Squeezy. XLISTit's licence Worker code ports almost unchanged.
+SCATTERit can be built on the planned stack: Cloudflare for the whole backend, GitHub, and Lemon Squeezy. XLISTit's licence Worker code ports almost unchanged.
 
 **Plan after the owner decisions:**
 - **Three modes, all "you press Post":**
   - **Intent / share link** (free, no keys, just a link the user opens): X web intent, Facebook sharer, Snapchat share link.
   - **Handoff** (all six): open the upload page in the user's normal browser, copy the caption, hand over the file. On phones, the Web Share API share sheet.
-  - **Assisted fill** (desktop, opt-in, all six): xpost fills the platform's own upload form in an in-app window; the user signs in and presses Post.
+  - **Assisted fill** (desktop, opt-in, all six): SCATTERit fills the platform's own upload form in an in-app window; the user signs in and presses Post.
 - **Mode preference per platform:** desktop = assisted fill (if opted in and sign-in works) > intent/share (where it exists and fits the post) > handoff. Web = intent > handoff.
 - **Scheduling** = a reminder scheduler: D1 as the source of truth, a cron sweep every minute, web push plus desktop notifications, optional email.
 - **No Workflows, no Queues, no Durable Objects** are needed (section C).
@@ -90,10 +92,10 @@ These are research verdicts. They are still true. Rows 1–12, 14–16 and 21–
 
 ### Other research findings (facts; mostly moot under the no-API decision)
 - **YouTube:** the private lock was removed on 2026-11-02 [LIVE]. Uploads have their own **100/day** project bucket [LIVE]. Moot.
-- **TikTok:** API posting and draft caps (5 users / 5 pending drafts per 24 h) are moot. Still relevant: "An app that copies arbitrary contents from other platforms to TikTok" is not acceptable to TikTok, so position xpost as "write once, post everywhere".
+- **TikTok:** API posting and draft caps (5 users / 5 pending drafts per 24 h) are moot. Still relevant: "An app that copies arbitrary contents from other platforms to TikTok" is not acceptable to TikTok, so position SCATTERit as "write once, post everywhere".
 - **Instagram:** carousels take **up to 20 items** [DIRECT] (API limit; web may differ, UNVERIFIED). API caps and login types are moot.
 - **Facebook:** the Share Dialog has a `hashtag` parameter but no text parameter. It needs an `app_id` (see section E).
-- **X:** "bring-your-own-keys" is forbidden by the Developer Agreement and Policy [LIVE]. **Moot**: xpost uses no X API at all.
+- **X:** "bring-your-own-keys" is forbidden by the Developer Agreement and Policy [LIVE]. **Moot**: SCATTERit uses no X API at all.
 - **Snapchat:** Creative Kit for Web needs no review and shares **URLs only**. The web uploader takes .mp4, 5–60 s, at least 540x960 (businesshelp).
 - **Cloudflare:** new projects should use **Workers with Static Assets, not Pages**. Cron changes take up to 15 min and runs can be missed.
 - **Bridge report correction:** `cloudflare_bridges.md` says bridges are needed because YouTube locks unaudited uploads to private. Out of date since 2026-11-02, and moot anyway (section G).
@@ -142,16 +144,16 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 | Webhook HMAC check | `website/lib/webhook.ts` | Copy, then extend (see the next list). |
 | Licence token signing | `website/lib/token.ts` | Copy with **new prefixes** and a **new key**. |
 | Config, rate limiting, error codes | `website/lib/config.ts`, `rate-limit.ts`, `codes.ts` | Copy. |
-| Desktop licence client | `src/main/licence/*`, `src/shared/licence*.ts` | Copy for xpost's Electron main process. Change the fingerprint salt and error codes. |
+| Desktop licence client | `src/main/licence/*`, `src/shared/licence*.ts` | Copy for SCATTERit's Electron main process. Change the fingerprint salt and error codes. |
 | Test harnesses | `website/test/fake-ls.ts`, `tests/e2e/licence-stack.ts`, `tests/unit/licence-harness.ts` | Copy. They run the real Worker code against a fake LS. |
 | Electron shell | `src/main/index.ts` security setup, preload, IPC contract, updater service and card | Copy, then split the 400-line `index.ts`. |
 | Assisted-fill engine | XLISTit assisted mode (partitions, isolated world, CDP file attach, URL capture, signed selectors) | Port for M8. Add per-platform kill switch and cookie-encryption fuse. |
 | Discipline | error-code registry, log scrubbing, DB backup before migrations, signed remote config, `no-secrets` test | Copy. |
-| UI system | Tailwind `@theme` tokens, utilities, brutalist style | Mirror it with xpost's own logo and colour. |
+| UI system | Tailwind `@theme` tokens, utilities, brutalist style | Mirror it with SCATTERit's own logo and colour. |
 
 ### "Fix, don't copy" list
-1. **One key signs everything** in XLISTit. xpost gets its own keys: one for licence tokens and a separate one for config/selector feeds. Desktop releases get a separate signing identity from XLISTit.
-2. **Turn on the `enableCookieEncryption` fuse** from xpost's first release.
+1. **One key signs everything** in XLISTit. SCATTERit gets its own keys: one for licence tokens and a separate one for config/selector feeds. Desktop releases get a separate signing identity from XLISTit.
+2. **Turn on the `enableCookieEncryption` fuse** from SCATTERit's first release.
 3. **Webhook:** make the store check mandatory. Add the `subscription_*` events (cancelled, expired, and so on; confirm the exact names against LS docs in M1). Add an idempotency store.
 4. **LS error mapping** relies on matching message text. Prefer status fields where LS provides them.
 5. **Deploy from GitHub Actions** with `wrangler deploy` and a scoped Cloudflare API token, not dashboard Git builds. You asked for Actions deploys.
@@ -165,7 +167,7 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 
 ## B. Platform research tables
 
-**Read this as research facts.** Tables 1 and 2 describe what each platform offers, including its APIs. **xpost uses none of the APIs** (owner decision). The rows the plan still uses are: draft/share/intent route, web upload page, sign-in in an app window, terms on automation, and media/caption limits. Table 3 lists the limits xpost actually validates against.
+**Read this as research facts.** Tables 1 and 2 describe what each platform offers, including its APIs. **SCATTERit uses none of the APIs** (owner decision). The rows the plan still uses are: draft/share/intent route, web upload page, sign-in in an app window, terms on automation, and media/caption limits. Table 3 lists the limits SCATTERit actually validates against.
 
 ### Table 1: access and routes (research facts)
 
@@ -188,9 +190,9 @@ Source: `research/xlistit.md`. All paths below are in `/home/user/marketplace-cr
 | **Token lifetimes / OAuth** (moot) | Access 2 h; refresh 180 d, rotates. | Long-lived 60 d; no PKCE. | Refresh 7 days in Testing. | Access 2 h; refresh rotates. | Long-lived about 60 d. | Access 1 h. |
 | **Approval UX demands** (moot) | Required post screen (privacy dropdown, no default, etc.). | Screencast per permission. | Show YouTube ToS; delete within 30 days of revoke. | Consent per user. | Same as Instagram, plus data-deletion callback. | Describe use to Snap contact. |
 
-### Table 3: limits xpost validates against
+### Table 3: limits SCATTERit validates against
 
-The user still uploads to each platform (by hand or assisted), so limits matter. Where the research found **web-upload** limits, xpost uses them. Where only API limits were researched, they are labelled **"API limits; web upload limits may differ (UNVERIFIED)"** and are kept in remote config so they can be corrected without a release. Validation **warns**; it does not block (the platform has the final word).
+The user still uploads to each platform (by hand or assisted), so limits matter. Where the research found **web-upload** limits, SCATTERit uses them. Where only API limits were researched, they are labelled **"API limits; web upload limits may differ (UNVERIFIED)"** and are kept in remote config so they can be corrected without a release. Validation **warns**; it does not block (the platform has the final word).
 
 | Platform | Media | Caption | Source label |
 |---|---|---|---|
@@ -207,7 +209,7 @@ The user still uploads to each platform (by hand or assisted), so limits matter.
 
 Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs repo, current to 2026-11-04).
 
-| Service | Key limits (Workers Paid) | What it means for xpost |
+| Service | Key limits (Workers Paid) | What it means for SCATTERit |
 |---|---|---|
 | **Inbound request body** | Set by the zone plan: Free/Pro 100 MB, Business 200 MB. | **Never send video through a Worker.** Browsers and desktop upload straight to R2. |
 | **Worker memory** | 128 MB per isolate (shared). | No media passes through the Worker, so this is not a concern. |
@@ -271,7 +273,7 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 7. All unsafe methods need a CSRF token (double-submit) plus an Origin check.
 
 **Desktop activation**
-- Same as XLISTit: LS `activate` with a fingerprint in the instance name. The Worker returns an Ed25519 licence token with xpost prefixes and an xpost key.
+- Same as XLISTit: LS `activate` with a fingerprint in the instance name. The Worker returns an Ed25519 licence token with SCATTERit prefixes and an SCATTERit key.
 - Devices count against the LS activation limit. Settings, Devices lets the user deactivate.
 - Offline grace is 7 days, as in XLISTit. Drafts and reminders stay readable offline.
 
@@ -284,7 +286,7 @@ Source: `research/cloudflare_bridges.md` (read from Cloudflare's official docs r
 2. The client requests presigned PUT URLs for batches of parts, then PUTs 10 MiB parts straight to R2. It keeps the ETags so it can resume. **Never proxied through the Worker.**
 3. `POST /media/:id/complete` sends the ETags and the Worker completes the upload.
 4. The client probes the file (duration, size, dimensions, codec where readable). The Worker stores the probe.
-5. Validation runs against every selected platform's rules (Table 3). Problems show as plain-English fixes, such as "Snapchat's web uploader takes videos of 60 seconds or less. Trim it or untick Snapchat." **xpost never changes media without consent.**
+5. Validation runs against every selected platform's rules (Table 3). Problems show as plain-English fixes, such as "Snapchat's web uploader takes videos of 60 seconds or less. Trim it or untick Snapchat." **SCATTERit never changes media without consent.**
 6. On desktop, the original local file path is also remembered, so handoff and assisted fill can use it without downloading.
 
 **Schedule (and "post now")**
@@ -402,7 +404,7 @@ All times are stored as UTC epoch milliseconds. IDs are random (ULID or 128-bit)
 - **Rate limits:** on sign-in, codes and licence checks. The CF binding is coarse; D1 counters handle strict limits.
 - **Logs:** route, status and error code only. **No licence keys, captions or emails.** Reuse XLISTit's scrubber.
 - **Repo:** no secrets. Copy XLISTit's `no-secrets` test.
-- **No platform credentials anywhere on the server.** No social passwords, cookies or tokens are ever sent to or stored by xpost's backend.
+- **No platform credentials anywhere on the server.** No social passwords, cookies or tokens are ever sent to or stored by SCATTERit's backend.
 - **Desktop:** `enableCookieEncryption` fuse on. Assisted-fill sessions live in per-platform persistent partitions **on the device only**. Selector feed signature checked before use. Separate code-signing and licence keys from XLISTit.
 
 ### Adapter interface (sketch)
@@ -465,7 +467,7 @@ Mode preference:
 
 **Assisted fill (owner approved all six, 2026-11-14):**
 - Desktop only. Off by default. Opt-in per platform after a plain warning naming that platform's risk (last column).
-- The user's own session in an in-app window. The user signs in and presses Post. **xpost never presses Post.**
+- The user's own session in an in-app window. The user signs in and presses Post. **SCATTERit never presses Post.**
 - Sessions stay on the device; Electron cookie-encryption fuse on.
 - Signed, versioned selector config via the updater/feed. Remote kill switch per platform.
 - If a field cannot be filled, a plain-English message and fallback to handoff.
@@ -555,13 +557,13 @@ Lead times are **not in the research** unless stated. No platform developer acco
 
 | # | Item | Needed by | Lead time | Notes |
 |---|---|---|---|---|
-| 1 | **Cloudflare account (Free plan for now; Paid $5/mo at launch)**, plus an API token for GitHub Actions (Workers, D1, R2 edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the xpost bucket) as Worker secrets | M1 | Minutes | Free is enough for M1–M4 (section C). |
+| 1 | **Cloudflare account (Free plan for now; Paid $5/mo at launch)**, plus an API token for GitHub Actions (Workers, D1, R2 edit), **plus an R2 S3 API token** (Access Key ID + Secret, scoped to the SCATTERit bucket) as Worker secrets | M1 | Minutes | Free is enough for M1–M4 (section C). |
 | 2 | **GitHub repo** (one repo: `/web`, `/worker`, `/desktop`, `/shared`) + a public releases repo for the updater, and Actions secrets | M1 | Minutes | |
-| 3 | **Lemon Squeezy**: new xpost product and variants, store ID, product and variant IDs, API key, webhook secret, webhook URL set to the Worker | M1 | Hours | Plan names, prices, session/device/storage limits per plan. |
+| 3 | **Lemon Squeezy**: new SCATTERit product and variants, store ID, product and variant IDs, API key, webhook secret, webhook URL set to the Worker | M1 | Hours | Plan names, prices, session/device/storage limits per plan. |
 | 4 | **Domain** (recommend Cloudflare Registrar) | **Recommended; required by launch** | Hours, then DNS | For email sign-in codes, the update feed and branding. Not needed for any platform. workers.dev is fine for development. |
 | 5 | **VAPID keypair** for web push | M4 | Minutes | We generate it; you store the private key as a Worker secret. |
 | 6 | Support email address and brand assets (logo, colour) | M2 | — | |
-| 7 | **Privacy policy, terms and data-deletion page** for xpost itself | M6 (before launch) | Days (writing) | Needed for Lemon Squeezy and customers, not for platforms. |
+| 7 | **Privacy policy, terms and data-deletion page** for SCATTERit itself | M6 (before launch) | Days (writing) | Needed for Lemon Squeezy and customers, not for platforms. |
 | 8 | **Apple Developer Program** (fee not researched; Assumption: ~$99/yr), Developer ID cert, notarytool API key | M7 | Days | Needed for Mac auto-update. |
 | 9 | **Windows signing**: Azure Trusted Signing (recommended) or an OV/EV certificate | M7 | Days to weeks | Prices not researched. |
 | 10 | **Approval for Email Service** (if you want email codes or email reminders) | M1 (codes) or M4 (reminders) | — | Free up to 3,000/month, then $0.35 per 1,000. Needs the domain. |
@@ -640,10 +642,10 @@ Routing rule: **Opus** for hard work (schema and migrations; licence, sessions a
 |---|---|---|---|
 | **M1** Repo, CI, Cloudflare, schema, sign-in | Monorepo `/web` `/worker` `/desktop` `/shared`. CI tests. Actions deploy to workers.dev (Worker + Static Assets). D1 schema v1 + migrations. R2 bucket, CORS (expose `ETag`), lifecycle. Web sign-in: purchase email + licence key via Worker, forked from XLISTit licence code. LS webhook. Sessions, CSRF, rate limits, session/device limits in config. Daily re-validation. Remote config + kill switches. | **Unchanged.** Schema has no platform-account, token or publish tables. Emailed code added once the domain and Email Service are approved (I-4). | Schema, migrations, licence, sessions, webhook → **Opus**. Repo scaffolding, CI, config files → **Sonnet**. |
 | **M2** Web UI on the fake adapter | **Platforms & modes** screen (no connections), composer (master + per-platform overrides + platform fields), R2 signed multipart uploads, per-platform validation, schedule (calendar), history and filters, drafts (autosave, duplicate). Light/dark, phone layout. | "Accounts" became "Platforms & modes": nothing to connect. Validation uses Table 3, kept in config. | Upload signing + validation rules → **Opus**. Fake adapter, screens, CRUD routes → **Sonnet**. |
-| **M3** Handoff, intents, reminders, "Ready to post" — **the core product** | Handoff for all six. X web intent. Facebook sharer. Snap share link. Reminders. "Ready to post" list. Statuses: waiting for you, handed off, confirmed posted, paste link. | Now the core product, not a fallback. xpost is usable by real users from here, with no approvals. | Handoff, intents, reminders UI, list → **Sonnet**. Review → **Opus**. |
+| **M3** Handoff, intents, reminders, "Ready to post" — **the core product** | Handoff for all six. X web intent. Facebook sharer. Snap share link. Reminders. "Ready to post" list. Statuses: waiting for you, handed off, confirmed posted, paste link. | Now the core product, not a fallback. SCATTERit is usable by real users from here, with no approvals. | Handoff, intents, reminders UI, list → **Sonnet**. Review → **Opus**. |
 | **M4** Reminder scheduler | D1 source of truth, cron sweep each minute with look-back, conditional claim, web push (VAPID), desktop notification hook, optional email, licence pause, retention cleanup. | **Replaces the publishing engine.** No Workflows, Queues, Durable Objects, idempotent publish, reconcile, platform caps or spend caps. | Scheduler → **Opus**. Extra failure-case tests → **Sonnet**. Review → **Opus**. |
 | **M5** API adapters | — | **REMOVED by owner decision** (no APIs). | — |
-| **M6** Policy pages | xpost's own privacy policy, terms and data-deletion page. You publish. | **Reduced:** no platform demo scripts or approval pack. Needed for Lemon Squeezy and customers. | Drafts → **Sonnet**. Claims checked against the code → **Opus**. |
+| **M6** Policy pages | SCATTERit's own privacy policy, terms and data-deletion page. You publish. | **Reduced:** no platform demo scripts or approval pack. Needed for Lemon Squeezy and customers. | Drafts → **Sonnet**. Claims checked against the code → **Opus**. |
 | **M7** Desktop app | XLISTit shell, activation + device binding, deactivate in settings, offline grace, offline drafts, local notifications, drag-and-drop, file reveal, update assistant, signed Mac/Win installers, Releases feed. | **Unchanged in scope; more important**, because assisted fill lives here. Cookie-encryption fuse on. New signing key. Signing in CI. Needs Apple + Windows certs (H-8, H-9). | Licence client, updater, signing pipeline → **Opus**. Shell wiring, desktop UI → **Sonnet**. |
 | **M8** Assisted fill, all six | Step 1: hands-on in-app sign-in test per platform; blocked platforms (likely YouTube) use handoff, no workaround. Step 2: per-platform fillers, risk warnings and opt-in, kill switches, signed selector feed, post-URL capture, fallback to handoff. | Approved for all six (I-3). | All assisted-fill work → **Opus**. Warning copy, settings UI → **Sonnet**. Review → **Opus**. |
 | **M9** Hardening | Monitoring, alerts on failed reminders and cron jobs, README with setup and known limits. | Also: export history, delete my data (if not done earlier), security review, sweep load test. No cost caps needed. | Security, alerts → **Opus**. README → **Sonnet**. |

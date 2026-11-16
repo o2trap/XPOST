@@ -4,6 +4,7 @@
 # then runs `wrangler deploy`. The Workers Builds API token needs "D1: Edit"; see README "Deploy".)
 # Production branch: claude/great-lamport-krx9rg (every push deploys).
 # `name` must match the Worker's name in the Cloudflare dashboard.
+# Intentionally keeps the old internal name "xpost" (the product is now SCATTERit): it must match the live Worker in the Cloudflare dashboard.
 name = "xpost"
 main = "worker/src/index.ts"
 compatibility_date = "2026-10-01"
@@ -25,12 +26,13 @@ run_worker_first = true
 # provisioning. `wrangler deploy` connects to the database named "xpost", or creates it if it does not exist yet.
 # Migrations live in worker/migrations and are applied by scripts/deploy.mjs BEFORE the new code is deployed.
 [[d1_databases]]
+# Intentionally keeps the old internal name "xpost": renaming the D1 database would create a new, empty one.
 binding = "DB"
 database_name = "xpost"
 migrations_dir = "worker/migrations"
 
 # Rate limits (Cloudflare Rate Limiting API, free). Same numbers as LIMITS in worker/src/rate-limit.ts (a test checks).
-# namespace_id must be unique in the Cloudflare account: XLISTit uses 7101-7106, so xpost uses 8101+.
+# namespace_id must be unique in the Cloudflare account: XLISTit uses 7101-7106, so SCATTERit uses 8101+.
 [[ratelimits]]
 name = "RL_SIGNIN"
 namespace_id = "8101"
@@ -56,8 +58,8 @@ simple = { limit = 300, period = 60 }
 crons = ["*/15 * * * *"]
 
 [vars]
-APP_NAME = "xpost"
-# Lemon Squeezy IDs of the xpost product (same store as XLISTit, different product). Placeholders until the product
+APP_NAME = "SCATTERit"
+# Lemon Squeezy IDs of the SCATTERit product (same store as XLISTit, different product). Placeholders until the product
 # exists: while LS_STORE_ID or LS_PRODUCT_ID is empty, every sign-in is refused ("not set up yet") and webhooks get 503.
 # Set the real values here (they are not secret) or in the dashboard (keep_vars keeps dashboard values).
 LS_STORE_ID = ""

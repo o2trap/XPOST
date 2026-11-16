@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { CSRF_PRESESSION } from '@xpost/shared';
+import { CSRF_PRESESSION } from '@scatterit/shared';
 import { BASE, DAY, harness, resetDb, startDb } from './harness';
 
 let db: D1Database, dispose: () => Promise<void>;
@@ -7,7 +7,7 @@ beforeAll(async () => ({ db, dispose } = await startDb()));
 afterAll(() => dispose());
 beforeEach(() => resetDb(db));
 
-const KEY = 'XPOST-KEY-0001';
+const KEY = 'SCATTERIT-KEY-0001';
 const setupKey = (h: ReturnType<typeof harness>, extra: Parameters<typeof h.fake.addKey>[0] = { key: KEY }) => h.fake.addKey({ customerEmail: 'Buyer@Example.com', ...extra });
 const me = async (h: ReturnType<typeof harness>, cookie: string) => h.call('GET', '/api/me', { cookie });
 
@@ -20,7 +20,7 @@ describe('sign-in', () => {
     expect(s.body.ok).toBe(true);
     expect(s.csrf).toMatch(/^[A-Za-z0-9_-]{43}$/);
     // cookie flags
-    expect(s.setCookie).toMatch(/^__Host-xpost_session=[A-Za-z0-9_-]{43}; /);
+    expect(s.setCookie).toMatch(/^__Host-scatterit_session=[A-Za-z0-9_-]{43}; /);
     for (const flag of ['Path=/', 'HttpOnly', 'Secure', 'SameSite=Lax', `Max-Age=${30 * 86400}`]) expect(s.setCookie).toContain(flag);
     expect(s.setCookie).not.toMatch(/Domain=/i);
     // web sign-in validates only: no LS instance (device slot) is used
@@ -173,7 +173,7 @@ describe('sessions', () => {
   it('GET /api/me needs a valid session', async () => {
     const h = harness(db);
     expect((await me(h, '')).status).toBe(401);
-    expect((await me(h, '__Host-xpost_session=' + 'A'.repeat(43))).status).toBe(401);
+    expect((await me(h, '__Host-scatterit_session=' + 'A'.repeat(43))).status).toBe(401);
     expect((await h.call('GET', '/api/me')).status).toBe(401);
   });
 
@@ -205,7 +205,7 @@ describe('sessions', () => {
     const s = await h.signIn();
     const res = await h.call('POST', '/api/auth/sign-out', { cookie: s.cookie, csrf: s.csrf });
     expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toMatch(/^__Host-xpost_session=; .*Max-Age=0/);
+    expect(res.headers.get('set-cookie')).toMatch(/^__Host-scatterit_session=; .*Max-Age=0/);
     expect((await me(h, s.cookie)).status).toBe(401);
   });
 

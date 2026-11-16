@@ -86,7 +86,7 @@ describe('Lemon Squeezy webhook: refunds', () => {
     const s = await h.signIn('buyer@example.com', 'EARLY-REFUND-01');
     expect(s.res.status).toBe(403);
     expect(s.body.code).toBe('refunded');
-    // even if LS still said the key was fine (e.g. no LS_API_KEY), xpost's record decides
+    // even if LS still said the key was fine (e.g. no LS_API_KEY), SCATTERit's record decides
     k.status = 'active';
     expect((await h.signIn('buyer@example.com', 'EARLY-REFUND-01')).body.code).toBe('refunded');
   });
@@ -118,7 +118,7 @@ describe('Lemon Squeezy webhook: refunds', () => {
 
   it('the user sees why in /api/me after a refund', async () => {
     const h = harness(db);
-    h.fake.addKey({ key: 'XPOST-KEY-0001', orderId: 703 });
+    h.fake.addKey({ key: 'SCATTERIT-KEY-0001', orderId: 703 });
     const s = await h.signIn();
     await send(h, orderEvent('order_refunded', { orderId: 703 }));
     const me = (await (await h.call('GET', '/api/me', { cookie: s.cookie })).json()) as any;

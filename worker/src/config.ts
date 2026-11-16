@@ -12,7 +12,7 @@ const int = (def: number, min: number, max: number) =>
 const secret = z.preprocess(blankToUndefined, z.string().min(1).optional());
 
 const Env = z.object({
-  /** xpost's Lemon Squeezy store (shared with XLISTit) and product (xpost only). Not secret. */
+  /** SCATTERit's Lemon Squeezy store (shared with XLISTit) and product (SCATTERit only). Not secret. */
   LS_STORE_ID: optionalId,
   LS_PRODUCT_ID: optionalId,
   /** Optional comma-separated allowed variant IDs. Empty = any variant of LS_PRODUCT_ID. */
@@ -53,7 +53,7 @@ export function getConfig(env: object): Config {
   let c = cache.get(env);
   if (!c) {
     const parsed = Env.safeParse(env);
-    if (!parsed.success) throw new Error('xpost config is invalid: ' + parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+    if (!parsed.success) throw new Error('SCATTERit config is invalid: ' + parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
     c = parsed.data;
     cache.set(env, c);
   }

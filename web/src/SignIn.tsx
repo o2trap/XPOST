@@ -21,7 +21,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-4" aria-label="Sign in">
       <h2 className="text-xl font-semibold">Sign in</h2>
-      <p className="text-sm text-slate-600 dark:text-slate-400">Use the email you bought xpost with and the licence key from your Lemon Squeezy receipt.</p>
+      <p className="text-sm text-slate-600 dark:text-slate-400">Use the email you bought SCATTERit with and the licence key from your Lemon Squeezy receipt.</p>
       <label className="flex flex-col gap-1 text-sm">
         Purchase email
         <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={input} />

@@ -1,4 +1,4 @@
-import type { MeResponse } from '@xpost/shared';
+import type { MeResponse } from '@scatterit/shared';
 import { revokeSession, signOut } from './api';
 
 const when = (ms: number | null) => (ms === null ? 'never' : new Date(ms).toLocaleString());

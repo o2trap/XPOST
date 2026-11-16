@@ -5,4 +5,5 @@ compatibility_date = "2026-10-01"
 
 [[d1_databases]]
 binding = "DB"
+# Test database; the production D1 keeps the internal name "xpost" (see ../../wrangler.toml).
 database_name = "xpost-test"

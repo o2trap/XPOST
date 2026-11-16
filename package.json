@@ -1,8 +1,8 @@
 {
-  "name": "xpost",
+  "name": "scatterit",
   "version": "0.1.0",
   "private": true,
-  "description": "xpost: write once, post everywhere (manual intent links, handoff, desktop assisted fill; no social media APIs)",
+  "description": "SCATTERit: write once, post everywhere (manual intent links, handoff, desktop assisted fill; no social media APIs)",
   "workspaces": [
     "web",
     "worker",

@@ -3,7 +3,7 @@
  * Removes secrets and personal details from text before it is logged.
  * Covers: card numbers (Luhn-checked), licence keys, emails, phone numbers, UK postcodes, IP addresses, sign-in tokens
  * (JWTs, bearer tokens), usernames and passwords inside links, secret link parameters, and "password: …"-style values.
- * xpost changes: eBay token pattern removed; xpost session cookie added.
+ * SCATTERit changes: eBay token pattern removed; SCATTERit session cookie added.
  */
 const luhn = (digits: string) => {
   let sum = 0, dbl = false;
@@ -22,10 +22,10 @@ export function scrubSecrets(input: unknown): string {
   return String(input)
     // user:password@ inside links
     .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/:@'"]+:[^\s/@'"]+@/gi, '$1[hidden]@')
-    // sign-in tokens and xpost's session cookie
+    // sign-in tokens and SCATTERit's session cookie
     .replace(/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, '[token]')
     .replace(/\bBearer\s+[^\s"',;]+/gi, 'Bearer [hidden]')
-    .replace(/(__Host-xpost_session=)[^;\s"']+/g, '$1[hidden]')
+    .replace(/(__Host-scatterit_session=)[^;\s"']+/g, '$1[hidden]')
     // secret values in links: ?code=…, &token=…
     .replace(new RegExp(`([?&#](?:${SECRET_PARAMS})=)[^&\\s"'#]+`, 'gi'), '$1[hidden]')
     // "password: x", "api_key=x", '"token":"x"'

@@ -2,8 +2,8 @@
  * Lemon Squeezy webhook: POST /api/webhooks/lemonsqueezy.
  * verifyWebhookSignature is forked from XLISTit website/lib/webhook.ts (hex HMAC-SHA256 of the raw body, checked
  * with Web Crypto's constant-time verify), and so is the refund handling (a full refund disables the order's licence
- * keys in Lemon Squeezy). xpost changes (Step 0 "fix, don't copy" list):
- * - the store check is mandatory, and the product (and variant, if configured) must be xpost's: the store is shared
+ * keys in Lemon Squeezy). SCATTERit changes (Step 0 "fix, don't copy" list):
+ * - the store check is mandatory, and the product (and variant, if configured) must be SCATTERit's: the store is shared
  *   with XLISTit, whose events are acknowledged and ignored;
  * - test-mode events are ignored unless ALLOW_TEST_WEBHOOKS=true;
  * - each delivery is claimed atomically in webhook_events (key = SHA-256 of the raw body; LS sends no event ID) and
@@ -17,12 +17,12 @@
  * - D1 is the source of truth: events change licences.status and pause/resume the owner's scheduled targets and
  *   reminders (pause.ts). Sessions are kept so the user can read why in the app.
  */
-import type { LicenceStatus } from '@xpost/shared';
+import type { LicenceStatus } from '@scatterit/shared';
 import type { Ctx } from './app';
 import { licenceConfigured } from './config';
 import { sha256Hex } from './crypto';
 import { json } from './http';
-import { SUBSCRIPTION_BLOCK_REASONS, deriveStatus, isXpostProduct, parseTime } from './licence';
+import { SUBSCRIPTION_BLOCK_REASONS, deriveStatus, isScatteritProduct, parseTime } from './licence';
 import { logError, logInfo } from './log';
 import { syncPauseStatements } from './pause';
 
@@ -109,7 +109,7 @@ export async function disableRefundedOrder(ctx: Ctx, orderId: number): Promise<b
     const row = await db.prepare('UPDATE refunded_orders SET disable_attempts = disable_attempts + 1 WHERE ls_order_id = ? RETURNING disable_attempts')
       .bind(orderId).first<{ disable_attempts: number }>();
     if (row && row.disable_attempts >= MAX_DISABLE_ATTEMPTS) {
-      logError(`refund: giving up disabling the licence keys of refunded order ${orderId} after ${row.disable_attempts} attempts; disable them in Lemon Squeezy by hand (xpost already refuses them)`);
+      logError(`refund: giving up disabling the licence keys of refunded order ${orderId} after ${row.disable_attempts} attempts; disable them in Lemon Squeezy by hand (SCATTERit already refuses them)`);
     }
     throw e;
   }
@@ -190,7 +190,7 @@ async function planEvent(ctx: Ctx, event: WebhookEvent, name: string): Promise<P
     case 'orders': {
       if (name !== 'order_refunded') return none(`ignored: ${name}`);
       const item = a.first_order_item ?? {};
-      if (!isXpostProduct(cfg, a.store_id, item.product_id, item.variant_id)) return none('ignored: other product');
+      if (!isScatteritProduct(cfg, a.store_id, item.product_id, item.variant_id)) return none('ignored: other product');
       if (a.status !== 'refunded') return none('ignored: partial refund'); // as in XLISTit
       statements.push(db.prepare(`INSERT INTO refunded_orders (ls_order_id, ls_store_id, ls_product_id, refunded_at) VALUES (?, ?, ?, ?)
         ON CONFLICT (ls_order_id) DO NOTHING`).bind(objectId, a.store_id, item.product_id!, now));
@@ -200,7 +200,7 @@ async function planEvent(ctx: Ctx, event: WebhookEvent, name: string): Promise<P
       break;
     }
     case 'subscriptions': {
-      if (!isXpostProduct(cfg, a.store_id, a.product_id, a.variant_id)) return none('ignored: other product');
+      if (!isScatteritProduct(cfg, a.store_id, a.product_id, a.variant_id)) return none('ignored: other product');
       if (await stale()) return none(`ignored: stale ${name}`);
       if (!a.order_id) return none(`ignored: ${name} without order`);
       statements.push(db.prepare(`INSERT INTO ls_subscriptions (ls_subscription_id, ls_order_id, ls_product_id, ls_variant_id, status, updated_at)
@@ -213,14 +213,14 @@ async function planEvent(ctx: Ctx, event: WebhookEvent, name: string): Promise<P
     }
     case 'subscription-invoices': {
       if (!a.subscription_id) return none(`ignored: ${name} without subscription`);
-      // Invoices carry no product: the subscription must already be known as xpost's, or LS must say it is.
+      // Invoices carry no product: the subscription must already be known as SCATTERit's, or LS must say it is.
       let orderId = (await db.prepare('SELECT ls_order_id FROM ls_subscriptions WHERE ls_subscription_id = ?').bind(a.subscription_id).first<{ ls_order_id: number }>())?.ls_order_id;
       if (orderId === undefined) {
         if (!ctx.ls.hasApiKey) return none('ignored: unknown subscription');
         const sub = await ctx.ls.getSubscription(a.subscription_id);
         if (!sub) return none('ignored: unknown subscription');
         const sa = sub.attributes;
-        if (!isXpostProduct(cfg, sa.store_id, sa.product_id, sa.variant_id)) return none('ignored: other product');
+        if (!isScatteritProduct(cfg, sa.store_id, sa.product_id, sa.variant_id)) return none('ignored: other product');
         orderId = sa.order_id;
         statements.push(db.prepare(`INSERT INTO ls_subscriptions (ls_subscription_id, ls_order_id, ls_product_id, ls_variant_id, status, updated_at)
           VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (ls_subscription_id) DO NOTHING`).bind(a.subscription_id, orderId, sa.product_id, sa.variant_id, sa.status, now));
@@ -232,7 +232,7 @@ async function planEvent(ctx: Ctx, event: WebhookEvent, name: string): Promise<P
     }
     case 'license-keys': {
       // Licence key objects have no variant_id; the variant was checked at sign-in.
-      if (!isXpostProduct(cfg, a.store_id, a.product_id)) return none('ignored: other product');
+      if (!isScatteritProduct(cfg, a.store_id, a.product_id)) return none('ignored: other product');
       if (await stale()) return none(`ignored: stale ${name}`);
       refs = await licencesWhere('ls_license_key_id', objectId);
       const lsStatus = (a.status ?? 'active') as 'inactive' | 'active' | 'expired' | 'disabled';

@@ -5,7 +5,7 @@
 # Lemon Squeezy API key (Settings > API in Lemon Squeezy). Used for licence re-validation (cron) and to disable
 # a licence key after a full refund. Without it, sign-in works but the cron re-validation is skipped.
 LS_API_KEY=
-# Signing secret of the Lemon Squeezy webhook pointing at https://<your xpost address>/api/webhooks/lemonsqueezy.
+# Signing secret of the Lemon Squeezy webhook pointing at https://<your SCATTERit address>/api/webhooks/lemonsqueezy.
 LS_WEBHOOK_SECRET=
 # At least 32 random characters, e.g. the output of: openssl rand -base64 48
 # Keys the CSRF tokens and the hashes used for rate limits and audit IPs. Changing it signs everyone out of CSRF

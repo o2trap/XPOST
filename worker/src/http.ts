@@ -1,4 +1,4 @@
-import type { ApiError, ApiErrorCode } from '@xpost/shared';
+import type { ApiError, ApiErrorCode } from '@scatterit/shared';
 
 export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
@@ -6,17 +6,17 @@ export const json = (body: unknown, status = 200, headers: Record<string, string
 /** Plain-English messages, safe to show. Sign-in failures stay generic except expired/refunded/disabled. */
 export const MESSAGES: Record<ApiErrorCode, string> = {
   bad_request: 'Please check what you entered and try again.',
-  invalid_credentials: "That email and licence key don't match an xpost licence. Check both and try again.",
-  expired: 'This xpost licence has expired. Renew it in Lemon Squeezy, then sign in again.',
-  refunded: "This xpost licence was refunded, so it can't be used any more. Buy xpost again to carry on.",
-  disabled: 'This xpost licence key has been disabled. Contact support if you think this is a mistake.',
-  not_configured: "Sign-in isn't available yet: xpost's licence settings haven't been set up.",
+  invalid_credentials: "That email and licence key don't match an SCATTERit licence. Check both and try again.",
+  expired: 'This SCATTERit licence has expired. Renew it in Lemon Squeezy, then sign in again.',
+  refunded: "This SCATTERit licence was refunded, so it can't be used any more. Buy SCATTERit again to carry on.",
+  disabled: 'This SCATTERit licence key has been disabled. Contact support if you think this is a mistake.',
+  not_configured: "Sign-in isn't available yet: SCATTERit's licence settings haven't been set up.",
   rate_limited: 'Too many attempts. Wait a little and try again.',
   unauthenticated: 'Please sign in.',
   csrf: 'This request was blocked for your security. Reload the page and try again.',
   forbidden_origin: 'Requests from other websites are not allowed.',
   not_found: 'Not found.',
-  licence_blocked: 'Your xpost licence is not active.',
+  licence_blocked: 'Your SCATTERit licence is not active.',
   upstream_error: "We couldn't reach the licence server. Try again in a minute.",
   server_error: 'Something went wrong on our side. Try again in a minute.',
 };

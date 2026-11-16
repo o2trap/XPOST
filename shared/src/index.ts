@@ -1,6 +1,6 @@
 /** Types and constants shared by the web app and the Worker. */
 
-export const APP_NAME = 'xpost';
+export const APP_NAME = 'SCATTERit';
 export const APP_VERSION = '0.1.0';
 
 export const PLATFORMS = ['tiktok', 'instagram', 'youtube', 'x', 'facebook', 'snapchat'] as const;
@@ -18,7 +18,7 @@ export interface HealthResponse {
 // ---- Auth and licence API (M1) ----
 
 /** Header that carries the CSRF token on every state-changing /api request. */
-export const CSRF_HEADER = 'X-XPOST-CSRF';
+export const CSRF_HEADER = 'X-SCATTERIT-CSRF';
 /** Before sign-in there is no session yet; the sign-in request sends this value in CSRF_HEADER. */
 export const CSRF_PRESESSION = 'sign-in';
 

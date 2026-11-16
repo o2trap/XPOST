@@ -1,9 +1,9 @@
 /**
  * Forked from XLISTit website/test/fake-ls.ts. In-memory imitation of Lemon Squeezy's License API plus the bits of
- * the main API xpost uses. Response shapes follow docs.lemonsqueezy.com.
- * xpost changes: per-key customer email (meta.customer_email), GET /v1/license-keys/:id, GET /v1/subscriptions/:id,
+ * the main API SCATTERit uses. Response shapes follow docs.lemonsqueezy.com.
+ * SCATTERit changes: per-key customer email (meta.customer_email), GET /v1/license-keys/:id, GET /v1/subscriptions/:id,
  * per-key and disable failure switches, a "down" switch, no
- * HTTP server, defaults are xpost's test store/product (1/10); XLISTit's product in the same store is 20.
+ * HTTP server, defaults are SCATTERit's test store/product (1/10); XLISTit's product in the same store is 20.
  */
 export interface FakeKey {
   id: number; key: string; status: 'inactive' | 'active' | 'expired' | 'disabled'; activationLimit: number;
@@ -37,7 +37,7 @@ export class FakeLemonSqueezy {
   }
 
   private meta(k: FakeKey) {
-    return { store_id: k.storeId, order_id: k.orderId, order_item_id: 1, product_id: k.productId, product_name: 'xpost', variant_id: k.variantId, variant_name: 'Default', customer_id: 1, customer_name: 'Test Buyer', customer_email: k.customerEmail };
+    return { store_id: k.storeId, order_id: k.orderId, order_item_id: 1, product_id: k.productId, product_name: 'SCATTERit', variant_id: k.variantId, variant_name: 'Default', customer_id: 1, customer_name: 'Test Buyer', customer_email: k.customerEmail };
   }
   private lk(k: FakeKey) {
     return { id: k.id, status: k.status, key: k.key, activation_limit: k.activationLimit, activation_usage: k.instances.length, created_at: k.createdAt, expires_at: k.expiresAt };

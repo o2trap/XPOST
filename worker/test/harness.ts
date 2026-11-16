@@ -4,13 +4,13 @@
  * each test.
  */
 import { getPlatformProxy } from 'wrangler';
-import { CSRF_HEADER, CSRF_PRESESSION } from '@xpost/shared';
+import { CSRF_HEADER, CSRF_PRESESSION } from '@scatterit/shared';
 import { createApp } from '../src/index';
 import type { Env } from '../src/app';
 import { resetRateLimit } from '../src/rate-limit';
 import { FakeLemonSqueezy } from './fake-ls';
 
-export const BASE = 'https://xpost.test';
+export const BASE = 'https://scatterit.test';
 export const T0 = Date.UTC(2026, 10, 14, 12, 0, 0);
 export const DAY = 86_400_000;
 
@@ -74,7 +74,7 @@ export function harness(db: D1Database, envExtra: Partial<Env> = {}) {
   }
 
   /** Signs in and returns the cookie header value to send back and the CSRF token. */
-  async function signIn(email = 'buyer@example.com', licenceKey = 'XPOST-KEY-0001', o: CallOpts = {}) {
+  async function signIn(email = 'buyer@example.com', licenceKey = 'SCATTERIT-KEY-0001', o: CallOpts = {}) {
     const res = await call('POST', '/api/auth/sign-in', { body: { email, licenceKey }, csrf: CSRF_PRESESSION, ...o });
     const setCookie = res.headers.get('set-cookie') ?? '';
     const cookie = setCookie.split(';')[0] ?? '';

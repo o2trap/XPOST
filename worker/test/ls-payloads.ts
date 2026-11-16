@@ -23,7 +23,7 @@ export function orderEvent(event: string, o: Common & { orderId: number; product
         status: o.status ?? 'refunded', status_formatted: 'Refunded', refunded: o.refunded ?? (o.status ?? 'refunded') === 'refunded', refunded_at: updated,
         subtotal_formatted: '£9.99', setup_fee_formatted: '£0.00', discount_total_formatted: '£0.00', tax_formatted: '£2.00', total_formatted: '£11.99',
         first_order_item: {
-          id: 1, order_id: o.orderId, product_id: o.productId ?? 10, variant_id: o.variantId ?? 100, product_name: 'xpost', variant_name: 'Default',
+          id: 1, order_id: o.orderId, product_id: o.productId ?? 10, variant_id: o.variantId ?? 100, product_name: 'SCATTERit', variant_name: 'Default',
           price: 1199, created_at: '2026-11-01T09:45:53.000000Z', updated_at: '2026-11-01T09:45:53.000000Z', test_mode: o.testMode ?? false,
         },
         urls: { receipt: 'https://app.lemonsqueezy.com/my-orders/104e18a2?signature=x' },
@@ -41,7 +41,7 @@ export function subscriptionEvent(event: string, o: Common & { subscriptionId: n
       type: 'subscriptions', id: String(o.subscriptionId),
       attributes: {
         store_id: o.storeId ?? 1, customer_id: 1, order_id: o.orderId, order_item_id: 1, product_id: o.productId ?? 10, variant_id: o.variantId ?? 100,
-        product_name: 'xpost', variant_name: 'Monthly', user_name: 'John Doe', user_email: 'johndoe@example.com',
+        product_name: 'SCATTERit', variant_name: 'Monthly', user_name: 'John Doe', user_email: 'johndoe@example.com',
         status: o.status, status_formatted: o.status, card_brand: 'visa', card_last_four: '4242', payment_processor: 'stripe',
         pause: o.status === 'paused' ? { mode: 'void', resumes_at: null } : null, cancelled: o.status === 'cancelled', trial_ends_at: null, billing_anchor: 12,
         first_subscription_item: { id: 1, subscription_id: o.subscriptionId, price_id: 1, quantity: 1, created_at: '2026-11-01T13:47:28.000000Z', updated_at: '2026-11-01T13:47:28.000000Z' },
